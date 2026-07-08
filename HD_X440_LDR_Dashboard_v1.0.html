@@ -1324,50 +1324,47 @@ function LTSourceTab({rows,role}){
   const SRC_BG_DEF='#374151';
   const NCOLS=7;
 
-  const TH ={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',
+  const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',
     letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',
-    border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:3};
-  const THS ={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:2,padding:'4px 4px'};
-  const THS2={...TH,background:'#78350F',fontSize:8,color:'#fed7aa',position:'sticky',top:46,zIndex:1,padding:'4px 4px'};
+    border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
+  const THS={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:1,padding:'4px 4px'};
 
   function renderLTTable(title,tblRows,key){
     const ltGM=agg(tblRows);
     const totalCols=1+(1+COLS.length)*NCOLS;
 
-    /* Row 1: LT(rowSpan=3) | ∑Total(rowSpan=2) | group headers (collapsed=rowSpan:2, expanded=rowSpan:1) | ungrouped srcs(rowSpan:2) */
+    /* Row 1: LT(rowSpan=2) | ∑Total | collapsed=group label / expanded=member names */
     const row1Cells=[
-      ce('th',{rowSpan:3,style:{...TH,width:'5%',textAlign:'left',
-        position:'sticky',left:0,zIndex:5,background:'#7C2D12'}},'LT'),
-      ce('th',{rowSpan:2,colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],
+      ce('th',{rowSpan:2,style:{...TH,width:'5%',textAlign:'left',
+        position:'sticky',left:0,zIndex:4,background:'#7C2D12'}},'LT'),
+      ce('th',{colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],
         borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
     ];
     grpInfo.grps.forEach(g=>{
       const isExp=expanded.has(g.label);
-      row1Cells.push(ce('th',{key:'rh_'+g.label,
-        colSpan:isExp?g.members.length*NCOLS:NCOLS,rowSpan:isExp?1:2,
-        style:{...TH,background:g.bg,cursor:'pointer',
-          borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
-        onClick:()=>toggleGrp(g.label),
-        title:(isExp?'Collapse ':'Expand ')+g.label
-      },(isExp?'▼ ':'▶ ')+g.label));
-    });
-
-    /* Row 2: member names only under expanded groups */
-    const row2Cells=[];
-    grpInfo.grps.forEach(g=>{
-      if(expanded.has(g.label))
-        g.members.forEach(m=>row2Cells.push(
-          ce('th',{key:'rh2_'+m,colSpan:NCOLS,
-            style:{...THS,background:SRC_BG[m]||SRC_BG_DEF,borderLeft:'1px solid rgba(255,255,255,.2)'}},m)
+      if(isExp){
+        g.members.forEach((m,mi)=>row1Cells.push(
+          ce('th',{key:'rh_'+m,colSpan:NCOLS,
+            style:{...TH,background:SRC_BG[m]||SRC_BG_DEF,cursor:'pointer',
+              borderLeft:'2px solid rgba(255,255,255,.25)',borderRight:'2px solid rgba(255,255,255,.25)'},
+            onClick:()=>toggleGrp(g.label),title:'Collapse '+g.label
+          },mi===0?'▼ '+m:m)
         ));
+      } else {
+        row1Cells.push(ce('th',{key:'rh_'+g.label,colSpan:NCOLS,
+          style:{...TH,background:g.bg,cursor:'pointer',
+            borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
+          onClick:()=>toggleGrp(g.label),title:'Expand '+g.label
+        },'▶ '+g.label));
+      }
     });
 
-    /* Row 3: SUB×7 for every effective column */
-    const row3Cells=[
-      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS2,color:SUB_C[i]}},s.l)),
+    /* Row 2: SUB×7 for ∑Total then every effective column */
+    const row2Cells=[
+      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)),
       ...COLS.flatMap(col=>
         SUB.map((s,i)=>ce('th',{key:(col.type==='grp'?col.label:col.src)+'_'+i,
-          title:s.t,style:{...THS2,color:SUB_C[i]}},s.l))
+          title:s.t,style:{...THS,color:SUB_C[i]}},s.l))
       ),
     ];
 
@@ -1379,8 +1376,7 @@ function LTSourceTab({rows,role}){
         ce('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
           ce('thead',null,
             ce('tr',null,...row1Cells),
-            row2Cells.length>0&&ce('tr',null,...row2Cells),
-            ce('tr',null,...row3Cells)
+            ce('tr',null,...row2Cells)
           ),
           ce('tbody',null,
             sortedLTs.map((lt,ri)=>{
@@ -1549,9 +1545,8 @@ function StateSourceTab({rows,role}){
   const SRC_BG_DEF='#374151';
   const NCOLS=7;
 
-  const TH ={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:3};
-  const THS ={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:2,padding:'4px 4px'};
-  const THS2={...TH,background:'#78350F',fontSize:8,color:'#fed7aa',position:'sticky',top:46,zIndex:1,padding:'4px 4px'};
+  const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
+  const THS={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:1,padding:'4px 4px'};
 
   const ddStyle={padding:'4px 10px',fontSize:10,fontFamily:'inherit',fontWeight:600,
     border:'1px solid #FED7AA',borderRadius:8,background:'#fff',color:'#7C2D12',cursor:'pointer',outline:'none'};
@@ -1562,38 +1557,36 @@ function StateSourceTab({rows,role}){
     const stGM=agg(tblRows);
     const totalCols=1+(1+COLS.length)*NCOLS;
 
-    /* Row 1: State(rowSpan=3) | ∑Total(rowSpan=2) | group headers | ungrouped srcs(rowSpan=2) */
+    /* Row 1: State(rowSpan=2) | ∑Total | collapsed=group label / expanded=member names */
     const row1Cells=[
-      ce('th',{rowSpan:3,style:{...TH,width:'7%',textAlign:'left',position:'sticky',left:0,zIndex:5,background:'#7C2D12'}},'State'),
-      ce('th',{rowSpan:2,colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
+      ce('th',{rowSpan:2,style:{...TH,width:'7%',textAlign:'left',position:'sticky',left:0,zIndex:4,background:'#7C2D12'}},'State'),
+      ce('th',{colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
     ];
     grpInfo.grps.forEach(g=>{
       const isExp=expanded.has(g.label);
-      row1Cells.push(ce('th',{key:'rh_'+g.label,
-        colSpan:isExp?g.members.length*NCOLS:NCOLS,rowSpan:isExp?1:2,
-        style:{...TH,background:g.bg,cursor:'pointer',
-          borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
-        onClick:()=>toggleGrp(g.label),
-        title:(isExp?'Collapse ':'Expand ')+g.label
-      },(isExp?'▼ ':'▶ ')+g.label));
-    });
-
-    /* Row 2: member names only under expanded groups */
-    const row2Cells=[];
-    grpInfo.grps.forEach(g=>{
-      if(expanded.has(g.label))
-        g.members.forEach(m=>row2Cells.push(
-          ce('th',{key:'rh2_'+m,colSpan:NCOLS,
-            style:{...THS,background:SRC_BG[m]||SRC_BG_DEF,borderLeft:'1px solid rgba(255,255,255,.2)'}},m)
+      if(isExp){
+        g.members.forEach((m,mi)=>row1Cells.push(
+          ce('th',{key:'rh_'+m,colSpan:NCOLS,
+            style:{...TH,background:SRC_BG[m]||SRC_BG_DEF,cursor:'pointer',
+              borderLeft:'2px solid rgba(255,255,255,.25)',borderRight:'2px solid rgba(255,255,255,.25)'},
+            onClick:()=>toggleGrp(g.label),title:'Collapse '+g.label
+          },mi===0?'▼ '+m:m)
         ));
+      } else {
+        row1Cells.push(ce('th',{key:'rh_'+g.label,colSpan:NCOLS,
+          style:{...TH,background:g.bg,cursor:'pointer',
+            borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
+          onClick:()=>toggleGrp(g.label),title:'Expand '+g.label
+        },'▶ '+g.label));
+      }
     });
 
-    /* Row 3: SUB×7 for every effective column */
-    const row3Cells=[
-      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS2,color:SUB_C[i]}},s.l)),
+    /* Row 2: SUB×7 for ∑Total then every effective column */
+    const row2Cells=[
+      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)),
       ...COLS.flatMap(col=>
         SUB.map((s,i)=>ce('th',{key:(col.type==='grp'?col.label:col.src)+'_'+i,
-          title:s.t,style:{...THS2,color:SUB_C[i]}},s.l))
+          title:s.t,style:{...THS,color:SUB_C[i]}},s.l))
       ),
     ];
 
@@ -1606,8 +1599,7 @@ function StateSourceTab({rows,role}){
         ce('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
           ce('thead',null,
             ce('tr',null,...row1Cells),
-            row2Cells.length>0&&ce('tr',null,...row2Cells),
-            ce('tr',null,...row3Cells)
+            ce('tr',null,...row2Cells)
           ),
           ce('tbody',null,
             stSorted.flatMap((st,ri)=>{
