@@ -1217,40 +1217,62 @@ function CrossTabView({rows, rowKey, colKey, rowLabel, limit=50}){
   );
 }
 
+const SRC_GROUPS_DEF=[
+  {label:'Paid',            bg:'#7C3AED',members:['MS FB','Adwords']},
+  {label:'Organic + Non MS',bg:'#0D9488',members:['Organic','Non MS']},
+];
+const GRP_CELL_BG={'Paid':'#FAF5FF','Organic + Non MS':'#F0FDFA'};
+
 /* ══════════════════════════════════════════════════════════════════════════
    LT × SOURCE TAB  (dedicated — full 9-col metrics, total on left, bottom GT)
 ══════════════════════════════════════════════════════════════════════════ */
 function LTSourceTab({rows,role}){
   const isViewer=role==='viewer';
-  /* Merge #N/A → Organic */
   const normRows=useMemo(()=>rows,[rows]);
 
   const sources=useMemo(()=>[...new Set(normRows.map(r=>r.source))].filter(Boolean).sort(),[normRows]);
-  const visSrcs=useMemo(()=>isViewer?[]:sources,[sources,isViewer]);
   const lts    =useMemo(()=>[...new Set(normRows.map(r=>r.lt))].filter(Boolean),[normRows]);
 
   const sortedLTs=useMemo(()=>[...lts].sort((a,b)=>
     normRows.filter(r=>r.lt===b).length - normRows.filter(r=>r.lt===a).length
   ),[lts,normRows]);
 
-  const grandM   =useMemo(()=>agg(normRows),[normRows]);
-  const srcTotals=useMemo(()=>{
-    const t={};
-    for(const s of sources) t[s]=agg(normRows.filter(r=>r.source===s));
-    return t;
-  },[normRows,sources]);
+  const grandM=useMemo(()=>agg(normRows),[normRows]);
 
-  /* ── Month-wise breakdown — latest month first ─────────────────────────── */
   const months=useMemo(()=>
     [...new Set(normRows.map(r=>r.month))].filter(Boolean)
       .sort((a,b)=>monthSortKey(b)-monthSortKey(a))
   ,[normRows]);
 
-  /* Pastel cell bg per source group */
-  const CELL_BG={'__total__':'#FFF7ED','Adwords':'#EFF6FF','Organic':'#F0FDF4','Non MS':'#FAF5FF'};
+  /* ── Source grouping ────────────────────────────────────────────────────── */
+  const [expanded,setExpanded]=useState(new Set());
+  const toggleGrp=name=>setExpanded(p=>{const n=new Set(p);n.has(name)?n.delete(name):n.add(name);return n;});
+
+  const grpInfo=useMemo(()=>{
+    const grps=SRC_GROUPS_DEF
+      .map(g=>({...g,members:g.members.filter(m=>sources.includes(m))}))
+      .filter(g=>g.members.length>0);
+    const claimed=new Set(grps.flatMap(g=>g.members));
+    return{grps,ungrouped:sources.filter(s=>!claimed.has(s))};
+  },[sources]);
+
+  const COLS=useMemo(()=>{
+    if(isViewer) return[];
+    const cols=[];
+    for(const g of grpInfo.grps){
+      if(expanded.has(g.label))
+        g.members.forEach(src=>cols.push({type:'src',src,groupLabel:g.label,groupBg:g.bg}));
+      else
+        cols.push({type:'grp',label:g.label,bg:g.bg,members:g.members});
+    }
+    grpInfo.ungrouped.forEach(src=>cols.push({type:'src',src}));
+    return cols;
+  },[isViewer,grpInfo,expanded]);
+
+  /* Pastel cell bg per source */
+  const CELL_BG={'__total__':'#FFF7ED','Adwords':'#EFF6FF','Organic':'#F0FDF4','Non MS':'#FAF5FF','MS FB':'#F5F3FF'};
   function getCellBg(src){return CELL_BG[src]||'#FFF8F1';}
 
-  /* 7-column renderer — plain black, center-aligned, no badges */
   const TD={padding:'4px 6px',border:'1px solid #FFEDD5',fontSize:10,textAlign:'center',
     fontFamily:'DM Mono,monospace',verticalAlign:'middle'};
   const TDL={...TD,textAlign:'left',fontFamily:'inherit',fontWeight:600,color:'#431407',
@@ -1281,7 +1303,14 @@ function LTSourceTab({rows,role}){
     ];
   }
 
-  /* Sub-header labels */
+  function mkCol(col,tblRows,pfx,dark=false){
+    const fRows=col.type==='grp'
+      ?tblRows.filter(r=>col.members.includes(r.source))
+      :tblRows.filter(r=>r.source===col.src);
+    const bg=col.type==='grp'?(GRP_CELL_BG[col.label]||'#F8F8FF'):getCellBg(col.src);
+    return mk(agg(fRows),pfx,dark,bg);
+  }
+
   const SUB=[
     {l:'Uniq Leads',t:'Unique Leads = Distinct mobile numbers in this month'},
     {l:'Int',       t:'Interested'},
@@ -1292,20 +1321,62 @@ function LTSourceTab({rows,role}){
     {l:'Dup%',      t:'Duplicity% = Duplicates ÷ Total'},
   ];
   const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24'];
-  const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6'};
+  const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6','MS FB':'#7C3AED'};
   const SRC_BG_DEF='#374151';
   const NCOLS=7;
-  const totalCols=1+(1+visSrcs.length)*NCOLS;
 
-  const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',
+  const TH ={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',
     letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',
-    border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
-  const THS={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:30,zIndex:1,padding:'4px 4px'};
+    border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:3};
+  const THS ={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:2,padding:'4px 4px'};
+  const THS2={...TH,background:'#78350F',fontSize:8,color:'#fed7aa',position:'sticky',top:46,zIndex:1,padding:'4px 4px'};
 
-  /* Reusable cross-tab table renderer — used for overall + each month */
-  function renderLTTable(title, tblRows, key){
+  function renderLTTable(title,tblRows,key){
     const ltGM=agg(tblRows);
-    const ltST={}; for(const s of sources) ltST[s]=agg(tblRows.filter(r=>r.source===s));
+    const totalCols=1+(1+COLS.length)*NCOLS;
+
+    /* Row 1: LT(rowSpan=3) | ∑Total(rowSpan=2) | group headers (collapsed=rowSpan:2, expanded=rowSpan:1) | ungrouped srcs(rowSpan:2) */
+    const row1Cells=[
+      ce('th',{rowSpan:3,style:{...TH,width:'5%',textAlign:'left',
+        position:'sticky',left:0,zIndex:5,background:'#7C2D12'}},'LT'),
+      ce('th',{rowSpan:2,colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],
+        borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
+    ];
+    grpInfo.grps.forEach(g=>{
+      const isExp=expanded.has(g.label);
+      row1Cells.push(ce('th',{key:'rh_'+g.label,
+        colSpan:isExp?g.members.length*NCOLS:NCOLS,rowSpan:isExp?1:2,
+        style:{...TH,background:g.bg,cursor:'pointer',
+          borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
+        onClick:()=>toggleGrp(g.label),
+        title:(isExp?'Collapse ':'Expand ')+g.label
+      },(isExp?'▼ ':'▶ ')+g.label));
+    });
+    grpInfo.ungrouped.forEach(src=>row1Cells.push(
+      ce('th',{key:'rh_'+src,colSpan:NCOLS,rowSpan:2,
+        style:{...TH,background:SRC_BG[src]||SRC_BG_DEF,
+          borderLeft:'2px solid rgba(255,255,255,.25)',borderRight:'2px solid rgba(255,255,255,.25)'}},src)
+    ));
+
+    /* Row 2: member names only under expanded groups */
+    const row2Cells=[];
+    grpInfo.grps.forEach(g=>{
+      if(expanded.has(g.label))
+        g.members.forEach(m=>row2Cells.push(
+          ce('th',{key:'rh2_'+m,colSpan:NCOLS,
+            style:{...THS,background:SRC_BG[m]||SRC_BG_DEF,borderLeft:'1px solid rgba(255,255,255,.2)'}},m)
+        ));
+    });
+
+    /* Row 3: SUB×7 for every effective column */
+    const row3Cells=[
+      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS2,color:SUB_C[i]}},s.l)),
+      ...COLS.flatMap(col=>
+        SUB.map((s,i)=>ce('th',{key:(col.type==='grp'?col.label:col.src)+'_'+i,
+          title:s.t,style:{...THS2,color:SUB_C[i]}},s.l))
+      ),
+    ];
+
     return ce('div',{key:key,style:{marginBottom:18}},
       ce('div',{style:{marginBottom:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
         ce('span',{style:{fontSize:11,fontWeight:700,color:'#7C2D12'}},title)
@@ -1313,20 +1384,9 @@ function LTSourceTab({rows,role}){
       ce('div',{className:'card',style:{padding:0,overflow:'hidden'}},
         ce('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
           ce('thead',null,
-            ce('tr',null,
-              ce('th',{rowSpan:2,style:{...TH,width:'5%',textAlign:'left',
-                position:'sticky',left:0,zIndex:4,background:'#7C2D12'}},'LT'),
-              ce('th',{colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],
-                borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
-              visSrcs.map(s=>ce('th',{key:s,colSpan:NCOLS,
-                style:{...TH,background:SRC_BG[s]||SRC_BG_DEF,
-                  borderLeft:'2px solid rgba(255,255,255,.25)',
-                  borderRight:'2px solid rgba(255,255,255,.25)'}},s))
-            ),
-            ce('tr',null,
-              SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)),
-              visSrcs.flatMap(src=>SUB.map((s,i)=>ce('th',{key:src+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)))
-            )
+            ce('tr',null,...row1Cells),
+            row2Cells.length>0&&ce('tr',null,...row2Cells),
+            ce('tr',null,...row3Cells)
           ),
           ce('tbody',null,
             sortedLTs.map((lt,ri)=>{
@@ -1335,7 +1395,7 @@ function LTSourceTab({rows,role}){
                 ce('td',{style:{...TDL,fontSize:10,padding:'3px 6px',color:'#C2410C',
                   background:ri%2===0?'#fff':'#FFF7ED'}},lt),
                 mk(agg(ltRows),lt+'_T_',false,getCellBg('__total__')),
-                visSrcs.map(src=>mk(agg(ltRows.filter(r=>r.source===src)),lt+'_'+src+'_',false,getCellBg(src)))
+                COLS.map((col,ci)=>mkCol(col,ltRows,lt+'_c'+ci+'_'))
               );
             }),
             ce('tr',{key:'div'},ce('td',{colSpan:totalCols,style:{padding:0,background:'#92400E',height:2}})),
@@ -1343,7 +1403,7 @@ function LTSourceTab({rows,role}){
               ce('td',{className:'label',style:{...TDTl,fontSize:10,padding:'4px 6px',
                 position:'sticky',left:0,zIndex:6}},'∑ Grand Total'),
               mk(ltGM,'GT_',true,getCellBg('__total__')),
-              visSrcs.map(src=>mk(ltST[src]||agg([]),'GT_'+src+'_',true,getCellBg(src)))
+              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true))
             )
           )
         )
@@ -1355,16 +1415,13 @@ function LTSourceTab({rows,role}){
     isViewer&&ce('div',{className:'viewer-notice'},'🔒 Source columns hidden — showing ∑ Total only'),
     ce('div',{style:{marginBottom:6,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
       ce('span',{style:{fontSize:10,color:'#94a3b8'}},
-        '∑ Total first · #N/A → Organic · '+sortedLTs.length+' LTs · Hover sub-headers for full name · Grand Total at bottom')
+        '∑ Total first · #N/A → Organic · '+sortedLTs.length+' LTs · Click group headers ▶/▼ to expand · Grand Total at bottom')
     ),
-
     renderLTTable('LT × Source — Disposition Cross-tab (All Months)', normRows, 'overall'),
-
     months.length>0&&ce('div',{style:{margin:'6px 0 10px',display:'flex',alignItems:'center',gap:8}},
       ce('span',{style:{fontSize:11,fontWeight:700,color:'#7C2D12'}},'📅  Month-wise Breakdown'),
       ce('span',{style:{fontSize:10,color:'#C2410C'}},'Latest month first · '+months.length+' months')
     ),
-
     months.map(mo=>renderLTTable('LT × Source — '+mo, normRows.filter(r=>r.month===mo), mo))
   );
 }
@@ -1376,7 +1433,6 @@ function StateSourceTab({rows,role}){
   const isViewer=role==='viewer';
   const normRows=useMemo(()=>rows,[rows]);
   const sources=useMemo(()=>[...new Set(normRows.map(r=>r.source))].filter(Boolean).sort(),[normRows]);
-  const visSrcs=useMemo(()=>isViewer?[]:sources,[sources,isViewer]);
   const states =useMemo(()=>[...new Set(normRows.map(r=>r.state))].filter(Boolean),[normRows]);
 
   /* ── Sort controls ───────────────────────────────────────────────────────── */
@@ -1387,6 +1443,31 @@ function StateSourceTab({rows,role}){
   /* ── State → City drill-down ─────────────────────────────────────────────── */
   const [expandedStates, setExpandedStates]=useState({});
   const toggleState=st=>setExpandedStates(prev=>({...prev,[st]:!prev[st]}));
+
+  /* ── Source grouping ─────────────────────────────────────────────────────── */
+  const [expanded,setExpanded]=useState(new Set());
+  const toggleGrp=name=>setExpanded(p=>{const n=new Set(p);n.has(name)?n.delete(name):n.add(name);return n;});
+
+  const grpInfo=useMemo(()=>{
+    const grps=SRC_GROUPS_DEF
+      .map(g=>({...g,members:g.members.filter(m=>sources.includes(m))}))
+      .filter(g=>g.members.length>0);
+    const claimed=new Set(grps.flatMap(g=>g.members));
+    return{grps,ungrouped:sources.filter(s=>!claimed.has(s))};
+  },[sources]);
+
+  const COLS=useMemo(()=>{
+    if(isViewer) return[];
+    const cols=[];
+    for(const g of grpInfo.grps){
+      if(expanded.has(g.label))
+        g.members.forEach(src=>cols.push({type:'src',src,groupLabel:g.label,groupBg:g.bg}));
+      else
+        cols.push({type:'grp',label:g.label,bg:g.bg,members:g.members});
+    }
+    grpInfo.ungrouped.forEach(src=>cols.push({type:'src',src}));
+    return cols;
+  },[isViewer,grpInfo,expanded]);
 
   const COL_OPTIONS=[
     {val:'total',    label:'Total Leads'},
@@ -1411,13 +1492,18 @@ function StateSourceTab({rows,role}){
     }
   };
 
-  /* Generic state-sorter — used for overall table and reused per-month */
+  /* Generic state-sorter — group-aware */
   const sortStatesIn=useCallback((tblRows,stateList)=>{
     return [...stateList].sort((a,b)=>{
       const stA=tblRows.filter(r=>r.state===a);
       const stB=tblRows.filter(r=>r.state===b);
-      const mA=sortSrc==='__total__'?agg(stA):agg(stA.filter(r=>r.source===sortSrc));
-      const mB=sortSrc==='__total__'?agg(stB):agg(stB.filter(r=>r.source===sortSrc));
+      const grp=SRC_GROUPS_DEF.find(g=>g.label===sortSrc);
+      const mA=sortSrc==='__total__'?agg(stA)
+        :grp?agg(stA.filter(r=>grp.members.includes(r.source)))
+        :agg(stA.filter(r=>r.source===sortSrc));
+      const mB=sortSrc==='__total__'?agg(stB)
+        :grp?agg(stB.filter(r=>grp.members.includes(r.source)))
+        :agg(stB.filter(r=>r.source===sortSrc));
       const vA=getMetric(mA,sortCol);
       const vB=getMetric(mB,sortCol);
       return sortDir==='desc'?vB-vA:vA-vB;
@@ -1425,16 +1511,14 @@ function StateSourceTab({rows,role}){
   },[sortSrc,sortCol,sortDir]);
 
   const sortedStates=useMemo(()=>sortStatesIn(normRows,states),[normRows,states,sortStatesIn]);
-  const grandM   =useMemo(()=>agg(normRows),[normRows]);
-  const srcTotals=useMemo(()=>{const t={};for(const s of sources)t[s]=agg(normRows.filter(r=>r.source===s));return t;},[normRows,sources]);
+  const grandM=useMemo(()=>agg(normRows),[normRows]);
 
-  /* ── Month-wise breakdown — latest month first ─────────────────────────── */
   const months=useMemo(()=>
     [...new Set(normRows.map(r=>r.month))].filter(Boolean)
       .sort((a,b)=>monthSortKey(b)-monthSortKey(a))
   ,[normRows]);
 
-  const CELL_BG={'__total__':'#FFF7ED','Adwords':'#EFF6FF','Organic':'#F0FDF4','Non MS':'#FAF5FF'};
+  const CELL_BG={'__total__':'#FFF7ED','Adwords':'#EFF6FF','Organic':'#F0FDF4','Non MS':'#FAF5FF','MS FB':'#F5F3FF'};
   const getCellBg=src=>CELL_BG[src]||'#FFF8F1';
   const TD={padding:'4px 6px',border:'1px solid #FFEDD5',fontSize:10,textAlign:'center',fontFamily:'DM Mono,monospace',verticalAlign:'middle'};
   const TDL={...TD,textAlign:'left',fontFamily:'inherit',fontWeight:600,color:'#431407',background:'#fff',position:'sticky',left:0,zIndex:1,borderRight:'2px solid #FED7AA'};
@@ -1457,25 +1541,74 @@ function StateSourceTab({rows,role}){
     ];
   }
 
+  function mkCol(col,tblRows,pfx,dark=false){
+    const fRows=col.type==='grp'
+      ?tblRows.filter(r=>col.members.includes(r.source))
+      :tblRows.filter(r=>r.source===col.src);
+    const bg=col.type==='grp'?(GRP_CELL_BG[col.label]||'#F8F8FF'):getCellBg(col.src);
+    return mk(agg(fRows),pfx,dark,bg);
+  }
+
   const SUB=[{l:'Total',t:'Total Leads'},{l:'Int',t:'Interested'},{l:'L2E%',t:'Interested ÷ Total'},
     {l:'Conn%',t:'Connectivity%'},{l:'L2E↑Conn',t:'Interested ÷ Connected'},{l:'Open%',t:'Open ÷ Total'},{l:'Dup%',t:'Duplicity%'}];
   const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24'];
-  const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6'};
+  const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6','MS FB':'#7C3AED'};
   const SRC_BG_DEF='#374151';
   const NCOLS=7;
-  const totalCols=1+(1+visSrcs.length)*NCOLS;
-  const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
-  const THS={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:30,zIndex:1,padding:'4px 4px'};
+
+  const TH ={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:3};
+  const THS ={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:2,padding:'4px 4px'};
+  const THS2={...TH,background:'#78350F',fontSize:8,color:'#fed7aa',position:'sticky',top:46,zIndex:1,padding:'4px 4px'};
 
   const ddStyle={padding:'4px 10px',fontSize:10,fontFamily:'inherit',fontWeight:600,
     border:'1px solid #FED7AA',borderRadius:8,background:'#fff',color:'#7C2D12',cursor:'pointer',outline:'none'};
 
-  /* Reusable cross-tab table renderer — used for overall + each month */
-  function renderStateTable(title, tblRows, key){
+  function renderStateTable(title,tblRows,key){
     const stStates=[...new Set(tblRows.map(r=>r.state))].filter(Boolean);
     const stSorted=sortStatesIn(tblRows,stStates);
     const stGM=agg(tblRows);
-    const stST={}; for(const s of sources) stST[s]=agg(tblRows.filter(r=>r.source===s));
+    const totalCols=1+(1+COLS.length)*NCOLS;
+
+    /* Row 1: State(rowSpan=3) | ∑Total(rowSpan=2) | group headers | ungrouped srcs(rowSpan=2) */
+    const row1Cells=[
+      ce('th',{rowSpan:3,style:{...TH,width:'7%',textAlign:'left',position:'sticky',left:0,zIndex:5,background:'#7C2D12'}},'State'),
+      ce('th',{rowSpan:2,colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
+    ];
+    grpInfo.grps.forEach(g=>{
+      const isExp=expanded.has(g.label);
+      row1Cells.push(ce('th',{key:'rh_'+g.label,
+        colSpan:isExp?g.members.length*NCOLS:NCOLS,rowSpan:isExp?1:2,
+        style:{...TH,background:g.bg,cursor:'pointer',
+          borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'},
+        onClick:()=>toggleGrp(g.label),
+        title:(isExp?'Collapse ':'Expand ')+g.label
+      },(isExp?'▼ ':'▶ ')+g.label));
+    });
+    grpInfo.ungrouped.forEach(src=>row1Cells.push(
+      ce('th',{key:'rh_'+src,colSpan:NCOLS,rowSpan:2,
+        style:{...TH,background:SRC_BG[src]||SRC_BG_DEF,
+          borderLeft:'2px solid rgba(255,255,255,.25)',borderRight:'2px solid rgba(255,255,255,.25)'}},src)
+    ));
+
+    /* Row 2: member names only under expanded groups */
+    const row2Cells=[];
+    grpInfo.grps.forEach(g=>{
+      if(expanded.has(g.label))
+        g.members.forEach(m=>row2Cells.push(
+          ce('th',{key:'rh2_'+m,colSpan:NCOLS,
+            style:{...THS,background:SRC_BG[m]||SRC_BG_DEF,borderLeft:'1px solid rgba(255,255,255,.2)'}},m)
+        ));
+    });
+
+    /* Row 3: SUB×7 for every effective column */
+    const row3Cells=[
+      ...SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS2,color:SUB_C[i]}},s.l)),
+      ...COLS.flatMap(col=>
+        SUB.map((s,i)=>ce('th',{key:(col.type==='grp'?col.label:col.src)+'_'+i,
+          title:s.t,style:{...THS2,color:SUB_C[i]}},s.l))
+      ),
+    ];
+
     return ce('div',{key:key,style:{marginBottom:18}},
       ce('div',{style:{marginBottom:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
         ce('span',{style:{fontSize:11,fontWeight:700,color:'#7C2D12'}},title),
@@ -1484,15 +1617,9 @@ function StateSourceTab({rows,role}){
       ce('div',{className:'card',style:{padding:0,overflow:'hidden'}},
         ce('table',{style:{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}},
           ce('thead',null,
-            ce('tr',null,
-              ce('th',{rowSpan:2,style:{...TH,width:'7%',textAlign:'left',position:'sticky',left:0,zIndex:4,background:'#7C2D12'}},'State'),
-              ce('th',{colSpan:NCOLS,style:{...TH,background:SRC_BG['__total__'],borderLeft:'2px solid rgba(255,255,255,.3)',borderRight:'2px solid rgba(255,255,255,.3)'}},'∑ Total'),
-              visSrcs.map(s=>ce('th',{key:s,colSpan:NCOLS,style:{...TH,background:SRC_BG[s]||SRC_BG_DEF,borderLeft:'2px solid rgba(255,255,255,.25)',borderRight:'2px solid rgba(255,255,255,.25)'}},s))
-            ),
-            ce('tr',null,
-              SUB.map((s,i)=>ce('th',{key:'t'+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)),
-              visSrcs.flatMap(src=>SUB.map((s,i)=>ce('th',{key:src+i,title:s.t,style:{...THS,color:SUB_C[i]}},s.l)))
-            )
+            ce('tr',null,...row1Cells),
+            row2Cells.length>0&&ce('tr',null,...row2Cells),
+            ce('tr',null,...row3Cells)
           ),
           ce('tbody',null,
             stSorted.flatMap((st,ri)=>{
@@ -1510,27 +1637,27 @@ function StateSourceTab({rows,role}){
                   (cities.length>0?' ('+cities.length+')':'')
                 ),
                 mk(agg(stRows),st+'_T_',false,getCellBg('__total__')),
-                visSrcs.map(src=>mk(agg(stRows.filter(r=>r.source===src)),st+'_'+src+'_',false,getCellBg(src)))
+                COLS.map((col,ci)=>mkCol(col,stRows,st+'_c'+ci+'_'))
               );
 
-              if(!isOpen||cities.length===0) return [stateRow];
+              if(!isOpen||cities.length===0) return[stateRow];
 
               const cityRowEls=cityRows.map(({ct,rows:ctRows})=>
                 ce('tr',{key:st+'__'+ct,style:{background:'#FFFBF5'}},
                   ce('td',{style:{...TDL,fontSize:9.5,padding:'2px 6px 2px 20px',
                     color:'#92400E',fontWeight:500,background:'#FFFBF5'}},'└ '+ct),
                   mk(agg(ctRows),st+'_'+ct+'_T_',false,'#FFFBF5'),
-                  visSrcs.map(src=>mk(agg(ctRows.filter(r=>r.source===src)),st+'_'+ct+'_'+src+'_',false,'#FFFBF5'))
+                  COLS.map((col,ci)=>mkCol(col,ctRows,st+'_'+ct+'_c'+ci+'_'))
                 )
               );
-              return [stateRow,...cityRowEls];
+              return[stateRow,...cityRowEls];
             }),
             ce('tr',{key:'div'},ce('td',{colSpan:totalCols,style:{padding:0,background:'#92400E',height:2}})),
             ce('tr',{className:'total-row grand-total-row'},
               ce('td',{className:'label',style:{...TDTl,fontSize:10,padding:'4px 6px',
                 position:'sticky',left:0,zIndex:6}},'∑ Grand Total'),
               mk(stGM,'GT_',true,getCellBg('__total__')),
-              visSrcs.map(src=>mk(stST[src]||agg([]),'GT_'+src+'_',true,getCellBg(src)))
+              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true))
             )
           )
         )
@@ -1542,32 +1669,27 @@ function StateSourceTab({rows,role}){
     isViewer&&ce('div',{className:'viewer-notice'},'🔒 Source columns hidden — showing ∑ Total only'),
     ce('div',{style:{marginBottom:10,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
       ce('span',{style:{fontSize:11,fontWeight:700,color:'#7C2D12'}},'State × Source — Disposition Cross-tab'),
-      ce('span',{style:{fontSize:10,color:'#C2410C'}},'∑ Total first · #N/A → Organic · Click a state to drill into cities · Grand Total at bottom'),
+      ce('span',{style:{fontSize:10,color:'#C2410C'}},'∑ Total first · #N/A → Organic · Click state to drill · Click group headers ▶/▼ to expand · Grand Total at bottom'),
       ce('div',{style:{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}),
       ce('span',{style:{fontSize:9,color:'#92400E',fontWeight:600}},'Sort by:'),
-      /* Dropdown 1 — Source */
       ce('select',{value:sortSrc,onChange:e=>setSortSrc(e.target.value),style:ddStyle},
         ce('option',{value:'__total__'},'∑ Total'),
+        grpInfo.grps.map(g=>ce('option',{key:g.label,value:g.label},g.label)),
         sources.map(s=>ce('option',{key:s,value:s},s))
       ),
-      /* Dropdown 2 — Column */
       ce('select',{value:sortCol,onChange:e=>setSortCol(e.target.value),style:ddStyle},
         COL_OPTIONS.map(o=>ce('option',{key:o.val,value:o.val},o.label))
       ),
-      /* Dropdown 3 — Direction */
       ce('select',{value:sortDir,onChange:e=>setSortDir(e.target.value),style:ddStyle},
         ce('option',{value:'desc'},'▼ High → Low'),
         ce('option',{value:'asc'}, '▲ Low → High')
       )
     ),
-
     renderStateTable('State × Source — All Months', normRows, 'overall'),
-
     months.length>0&&ce('div',{style:{margin:'6px 0 10px',display:'flex',alignItems:'center',gap:8}},
       ce('span',{style:{fontSize:11,fontWeight:700,color:'#7C2D12'}},'📅  Month-wise Breakdown'),
       ce('span',{style:{fontSize:10,color:'#C2410C'}},'Latest month first · '+months.length+' months')
     ),
-
     months.map(mo=>renderStateTable('State × Source — '+mo, normRows.filter(r=>r.month===mo), mo))
   );
 }
