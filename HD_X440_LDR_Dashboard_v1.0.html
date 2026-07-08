@@ -2297,7 +2297,7 @@ function LoginPage({onSignIn,error,loading}){
     ce('div',{className:'auth-card'},
       ce('div',{className:'auth-logo'},'H'),
       ce('div',{className:'auth-title'},'H-D X440 · LDR Dashboard'),
-      ce('div',{className:'auth-subtitle'},'BikeDekho Lead Disposition Analytics · @girnarsoft.com accounts only'),
+      ce('div',{className:'auth-subtitle'},'BikeDekho Lead Disposition Analytics · @girnarsoft.com & @girnarcare.com only'),
       ce('button',{className:'auth-btn',onClick:onSignIn,disabled:loading},
         ce('img',{src:'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
           width:20,height:20,alt:'',style:{flexShrink:0}}),
@@ -2422,9 +2422,10 @@ function AuthGate(){
         setFbUser(null);setRole(null);setAuthState('unauth');
         return;
       }
-      if(!user.email.endsWith('@girnarsoft.com')){
+      const allowed=['@girnarsoft.com','@girnarcare.com'];
+      if(!allowed.some(d=>user.email.endsWith(d))){
         fbAuth.signOut();
-        setAuthErr('Access restricted to @girnarsoft.com accounts only.');
+        setAuthErr('Access restricted to @girnarsoft.com and @girnarcare.com accounts only.');
         setAuthState('unauth');setSigningIn(false);return;
       }
       try{
@@ -2466,7 +2467,6 @@ function AuthGate(){
   function signIn(){
     setAuthErr(null);setSigningIn(true);
     const provider=new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({hd:'girnarsoft.com'});
     fbAuth.signInWithPopup(provider)
       .catch(e=>{
         setSigningIn(false);
