@@ -1129,7 +1129,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
   const COLS=useMemo(()=>TOPGROUPS.flatMap(g=>{
     if(!g.children) return[{key:'total',aggKey:'total',grandLeads:g.grandLeads,scols:SCOLS_TOTAL}];
     if(!expanded.has(g.name)) return[{key:g.aggKey,aggKey:g.aggKey,grandLeads:g.grandLeads,scols:SCOLS_NONTOTAL}];
-    return g.children.map(src=>({key:src,aggKey:'src',src,grandLeads:grandSrc[src].uniqueLeads,scols:SCOLS_NONTOTAL}));
+    return g.children.map(src=>({key:src,aggKey:'src',src,grandLeads:(grandSrc[src]||EMPTY_AGG).uniqueLeads,scols:SCOLS_NONTOTAL}));
   }),[expanded,grand,grandPaid,grandOrg,grandSrc,isStateGrid]);
 
   function aggForCol(v,col){
@@ -1456,8 +1456,8 @@ const MultiSelect=React.memo(function MultiSelect({label,options,selected,onChan
       border:'1px solid #A8D5BA',borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,.15)',
       maxHeight:280,overflowY:'auto',minWidth:200,zIndex:50,padding:6}},
       ce('div',{style:{display:'flex',gap:10,padding:'2px 8px 8px',borderBottom:'1px solid #E5E7EB',marginBottom:4}},
-        ce('span',{style:{fontSize:10,color:'#2D6A4F',cursor:'pointer',fontWeight:700},onClick:()=>onChange(new Set())},'Select All'),
-        ce('span',{style:{fontSize:10,color:'#9ca3af',cursor:'pointer',fontWeight:700},onClick:()=>onChange(new Set(options))},'Clear All')
+        ce('span',{style:{fontSize:10,color:'#2D6A4F',cursor:'pointer',fontWeight:700},onClick:()=>onChange(new Set(options))},'Select All'),
+        ce('span',{style:{fontSize:10,color:'#9ca3af',cursor:'pointer',fontWeight:700},onClick:()=>onChange(new Set())},'Clear All')
       ),
       options.map(o=>ce('label',{key:o,style:{display:'flex',alignItems:'center',gap:7,padding:'4px 8px',
         fontSize:11,cursor:'pointer',borderRadius:4,whiteSpace:'nowrap'}},
