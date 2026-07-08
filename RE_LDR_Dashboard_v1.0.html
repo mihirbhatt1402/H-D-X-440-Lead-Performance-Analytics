@@ -249,11 +249,6 @@ function parseRows(raw){
    Booking attribution must use this Set — not r.isUnique on the booking row —
    because CRM exports often record the booking on a later (duplicate) row while
    the Unique flag lives on the first submission row for the same lead. */
-function buildUniqueLeadSet(rows){
-  const s=new Set();
-  for(const r of rows) if(r.isUnique) s.add(r.lead_number);
-  return s;
-}
 
 /* ── Core aggregate function ──────────────────────────────────────── */
 /* rows   = already filtered by source / lt / primarySrc (NOT by lead_month)
@@ -265,8 +260,7 @@ function aggRE(rows,mf){
   const isAll=mf==='All';
   let totalLeads=0;
   const uniqueSet=new Set();
-  const bookingSet=new Set();
-  const uniqueLeadNums=buildUniqueLeadSet(rows);
+  let bookingCount=0;
 
   if(isAll){
     const leadMonthsPresent=new Set();
@@ -274,9 +268,9 @@ function aggRE(rows,mf){
     for(const r of rows){
       totalLeads++;
       if(r.isUnique) uniqueSet.add(r.lead_number);
-      if(uniqueLeadNums.has(r.lead_number)&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
+      if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        if(diff>=0&&diff<=2) bookingSet.add(r.lead_number);
+        if(diff>=0&&diff<=2) bookingCount++;
       }
     }
   } else {
@@ -287,9 +281,9 @@ function aggRE(rows,mf){
         if(r.isUnique) uniqueSet.add(r.lead_number);
       }
       /* Backward attribution: count bookings that happened IN mf from leads mf, mf-1, mf-2 */
-      if(uniqueLeadNums.has(r.lead_number)&&r.booking_month===mf){
+      if(r.isUnique&&r.booking_month===mf){
         const diff=mfOrder-monthOrder(r.lead_month);
-        if(diff>=0&&diff<=2) bookingSet.add(r.lead_number);
+        if(diff>=0&&diff<=2) bookingCount++;
       }
     }
   }
@@ -297,7 +291,7 @@ function aggRE(rows,mf){
   const uniqueLeads=uniqueSet.size;
   const dupLeads=totalLeads-uniqueLeads;
   const dupPct=totalLeads>0?(totalLeads-uniqueLeads)/totalLeads*100:0;
-  const bookings=bookingSet.size;
+  const bookings=bookingCount;
   const e2bPct=uniqueLeads>0?(bookings/uniqueLeads*100):0;
   return{totalLeads,uniqueLeads,dupLeads,dupPct,bookings,e2bPct};
 }
@@ -308,23 +302,22 @@ function aggMulti(rows,months){
   const monthSet=new Set(months);
   let totalLeads=0;
   const uniqueSet=new Set();
-  const bookingSet=new Set();
-  const uniqueLeadNums=buildUniqueLeadSet(rows);
+  let bookingCount=0;
   for(const r of rows){
     if(monthSet.has(r.lead_month)){
       totalLeads++;
       if(r.isUnique) uniqueSet.add(r.lead_number);
     }
     /* Backward attribution: bookings IN a month in monthSet, from leads within 0-2 months before */
-    if(uniqueLeadNums.has(r.lead_number)&&r.booking_month&&monthSet.has(r.booking_month)){
+    if(r.isUnique&&r.booking_month&&monthSet.has(r.booking_month)){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=0&&diff<=2) bookingSet.add(r.lead_number);
+      if(diff>=0&&diff<=2) bookingCount++;
     }
   }
   const uniqueLeads=uniqueSet.size;
   const dupLeads=totalLeads-uniqueLeads;
   const dupPct=totalLeads>0?(totalLeads-uniqueLeads)/totalLeads*100:0;
-  const bookings=bookingSet.size;
+  const bookings=bookingCount;
   const e2bPct=uniqueLeads>0?(bookings/uniqueLeads*100):0;
   return{totalLeads,uniqueLeads,dupLeads,dupPct,bookings,e2bPct};
 }
@@ -398,9 +391,7 @@ function aggGrouped(rows,mf,dimKey){
   }
   const mfOrder=isAll?0:monthOrder(mf);
   const PAID_MBRS=SRC_GROUPS[0].members,ORG_MBRS=SRC_GROUPS[1].members;
-  const uniqueLeadNums=buildUniqueLeadSet(rows);
-
-  function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingSet:new Set()}; }
+  function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingCount:0}; }
   const total=mk(),paid=mk(),org=mk();
   const bySrc=new Map(),byDim=new Map(),byDimSrc=new Map(),byDimPaid=new Map(),byDimOrg=new Map();
   function acc(map,key){ let a=map.get(key); if(a===undefined){a=mk();map.set(key,a);} return a; }
@@ -409,13 +400,13 @@ function aggGrouped(rows,mf,dimKey){
     let countsLead,countsBooking;
     if(isAll){
       countsLead=true;
-      if(uniqueLeadNums.has(r.lead_number)&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
+      if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const d=monthOrder(r.booking_month)-monthOrder(r.lead_month);
         countsBooking=d>=0&&d<=2;
       } else countsBooking=false;
     } else {
       countsLead=r.lead_month===mf;
-      if(uniqueLeadNums.has(r.lead_number)&&r.booking_month===mf){
+      if(r.isUnique&&r.booking_month===mf){
         const d=mfOrder-monthOrder(r.lead_month);
         countsBooking=d>=0&&d<=2;
       } else countsBooking=false;
@@ -428,7 +419,7 @@ function aggGrouped(rows,mf,dimKey){
 
     const bump=a=>{
       if(countsLead){ a.totalLeads++; if(countsUnique) a.uniqueSet.add(r.lead_number); }
-      if(countsBooking) a.bookingSet.add(r.lead_number);
+      if(countsBooking) a.bookingCount++;
     };
     bump(total);
     if(inPaid) bump(paid);
@@ -445,7 +436,7 @@ function aggGrouped(rows,mf,dimKey){
   function fin(a){
     const uniqueLeads=a.uniqueSet.size,dupLeads=a.totalLeads-uniqueLeads;
     const dupPct=a.totalLeads>0?dupLeads/a.totalLeads*100:0;
-    const bookings=a.bookingSet.size;
+    const bookings=a.bookingCount;
     const e2bPct=uniqueLeads>0?bookings/uniqueLeads*100:0;
     return{totalLeads:a.totalLeads,uniqueLeads,dupLeads,dupPct,bookings,e2bPct};
   }
@@ -480,13 +471,12 @@ function aggGrouped(rows,mf,dimKey){
    grids for every month (not just the latest) affordable on large datasets. */
 function aggGroupedByMonth(rows,dimKey){
   const PAID_MBRS=SRC_GROUPS[0].members,ORG_MBRS=SRC_GROUPS[1].members;
-  function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingSet:new Set()}; }
+  function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingCount:0}; }
   function acc(map,key){ let a=map.get(key); if(a===undefined){a=mk();map.set(key,a);} return a; }
   function newBundle(){ return{total:mk(),paid:mk(),org:mk(),bySrc:new Map(),byDim:new Map(),byDimSrc:new Map(),byDimPaid:new Map(),byDimOrg:new Map()}; }
 
   const bundles=new Map();
   function getBundle(m){ let b=bundles.get(m); if(!b){b=newBundle();bundles.set(m,b);} return b; }
-  const uniqueLeadNums=buildUniqueLeadSet(rows);
 
   for(const r of rows){
     const src=r.source;
@@ -508,11 +498,11 @@ function aggGroupedByMonth(rows,dimKey){
       }
     }
     /* Backward attribution: booking credited to booking_month bucket; lead must be within 0-2 months before */
-    if(uniqueLeadNums.has(r.lead_number)&&r.booking_month&&r.lead_month){
+    if(r.isUnique&&r.booking_month&&r.lead_month){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
       if(diff>=0&&diff<=2){
         const b=getBundle(r.booking_month);
-        const bumpBooking=a=>a.bookingSet.add(r.lead_number);
+        const bumpBooking=a=>{ a.bookingCount++; };
         bumpBooking(b.total);
         if(inPaid) bumpBooking(b.paid);
         if(inOrg) bumpBooking(b.org);
@@ -530,7 +520,7 @@ function aggGroupedByMonth(rows,dimKey){
   function fin(a){
     const uniqueLeads=a.uniqueSet.size,dupLeads=a.totalLeads-uniqueLeads;
     const dupPct=a.totalLeads>0?dupLeads/a.totalLeads*100:0;
-    const bookings=a.bookingSet.size;
+    const bookings=a.bookingCount;
     const e2bPct=uniqueLeads>0?bookings/uniqueLeads*100:0;
     return{totalLeads:a.totalLeads,uniqueLeads,dupLeads,dupPct,bookings,e2bPct};
   }
