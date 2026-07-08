@@ -1220,7 +1220,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
     whiteSpace:'nowrap',position:'sticky',top:23,zIndex:2,color:'#fff'};
   const thSub={padding:'4px 6px',fontSize:8,fontWeight:700,textTransform:'uppercase',
     letterSpacing:'.05em',color:'#1E40AF',background:'#EFF6FF',textAlign:'center',
-    border:'1px solid #BFDBFE',whiteSpace:'nowrap',position:'sticky',top:44,zIndex:1};
+    border:'1px solid #BFDBFE',whiteSpace:'nowrap',position:'sticky',top:isSourceGrid?0:23,zIndex:1};
   const lblStyle={padding:'5px 10px',fontSize:11,fontWeight:600,color:'#222',
     position:'sticky',left:0,zIndex:1,borderRight:'2px solid #D1D5DB',
     whiteSpace:'nowrap',textAlign:'left'};
@@ -1237,9 +1237,9 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
     ce('div',{style:{overflowX:'auto'}},
       ce('table',{style:{borderCollapse:'collapse',fontSize:11,width:'100%'}},
         ce('thead',null,
-          /* Row 1: Total | Paid | Organic + Non MS — click Paid/Organic to expand/collapse */
-          ce('tr',null,
-            ce('th',{rowSpan:3,style:{...thBase,textAlign:'left',minWidth:110,
+          /* Row 1: Group headers (Total / Paid / Organic) — hidden on Source tab */
+          !isSourceGrid&&ce('tr',null,
+            ce('th',{rowSpan:2,style:{...thBase,textAlign:'left',minWidth:110,
               background:'#1D4ED8',position:'sticky',left:0,zIndex:4,
               borderRight:'2px solid rgba(255,255,255,.3)'}},dimLabel||rowKey.toUpperCase()),
             ...TOPGROUPS.map((g,gi)=>{
@@ -1254,20 +1254,11 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
                 g.children?(isExp?'▼ ':'▶ ')+g.label:g.label);
             })
           ),
-          /* Row 2: blank under Total | aggregate-or-children under Paid/Organic */
+          /* Metric column headers (always shown; on Source tab also holds the dim label) */
           ce('tr',null,
-            ...TOPGROUPS.flatMap((g,gi)=>{
-              if(!g.children) return[ce('th',{key:'sg'+gi,colSpan:SCOLS_TOTAL.length,
-                style:{...thSub2,background:g.bg,opacity:.75}},'')];
-              if(!expanded.has(g.name)) return[ce('th',{key:'sg'+gi,colSpan:SCOLS_NONTOTAL.length,
-                style:{...thSub2,background:g.bg,opacity:.75}},'∑ '+g.label)];
-              return g.children.map((src,si)=>ce('th',{key:'sg'+gi+'_'+si,colSpan:SCOLS_NONTOTAL.length,
-                style:{...thSub2,background:g.bg,opacity:si%2===0?1:.8,
-                  borderLeft:si>0?'1px solid rgba(255,255,255,.3)':'2px solid rgba(255,255,255,.4)'}},src));
-            })
-          ),
-          /* Row 3: per-column metric headers — click to sort */
-          ce('tr',null,
+            isSourceGrid&&ce('th',{style:{...thSub,top:0,textAlign:'left',minWidth:110,
+              background:'#1D4ED8',color:'#fff',position:'sticky',left:0,zIndex:2,
+              borderRight:'2px solid #BFDBFE'}},dimLabel||rowKey.toUpperCase()),
             ...COLS.flatMap((col,ci)=>col.scols.map((s,si)=>{
               const active=sort.colKey===col.key&&sort.metric===s.m;
               return ce('th',{key:col.key+si,
