@@ -1867,7 +1867,7 @@ var FIREBASE_CONFIG={
   appId:'1:327269038709:web:037032749de4cae0b2d63c',
 };
 var ADMIN_EMAIL='mihir.bhatt@girnarsoft.com';
-var ALLOWED_DOMAIN='@girnarsoft.com';
+var ALLOWED_DOMAINS=['@girnarsoft.com','@girnarcare.com'];
 var USERS_COL='re_ldr_users';
 var PRESENCE_PATH='re_ldr_presence';
 
@@ -1919,7 +1919,7 @@ function LoginPage({onLogin,loading,error}){
         )
       ),
       ce('h2',{style:{fontSize:18,fontWeight:700,color:'#111827',margin:'0 0 8px'}},'Sign in to access'),
-      ce('p',{style:{fontSize:12,color:'#6b7280',margin:'0 0 24px',lineHeight:1.6}},'Use your @girnarsoft.com Google account to continue.'),
+      ce('p',{style:{fontSize:12,color:'#6b7280',margin:'0 0 24px',lineHeight:1.6}},'Use your @girnarsoft.com or @girnarcare.com Google account to continue.'),
       loading
         ?ce('div',{style:{padding:'18px 0',color:'#6b7280',fontSize:13}},'Signing in…')
         :ce('button',{className:'auth-btn',onClick:onLogin},
@@ -2070,8 +2070,8 @@ function AuthGate(){
       cleanups.current.forEach(function(f){try{f();}catch(e){}});
       cleanups.current=[];
       if(!user){setAuthState('unauth');setFbUser(null);setRole(null);setPresence({});return;}
-      if(!user.email||!user.email.endsWith(ALLOWED_DOMAIN)){
-        setAuthErr('Only '+ALLOWED_DOMAIN+' accounts are allowed.');
+      if(!user.email||!ALLOWED_DOMAINS.some(d=>user.email.endsWith(d))){
+        setAuthErr('Only @girnarsoft.com or @girnarcare.com accounts are allowed.');
         auth.signOut();return;
       }
       setFbUser(user);
@@ -2097,7 +2097,7 @@ function AuthGate(){
   function handleLogin(){
     setAuthLoading(true);setAuthErr('');
     var provider=new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({hd:'girnarsoft.com',prompt:'select_account'});
+    provider.setCustomParameters({prompt:'select_account'});
     getFbAuth().signInWithPopup(provider)
       .catch(function(e){if(e.code!=='auth/popup-closed-by-user')setAuthErr(e.message);})
       .then(function(){setAuthLoading(false);},function(){setAuthLoading(false);});
