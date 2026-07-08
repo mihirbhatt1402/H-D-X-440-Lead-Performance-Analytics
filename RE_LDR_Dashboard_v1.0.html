@@ -1212,6 +1212,9 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
     });
   }
 
+  const anyExpanded=!isSourceGrid&&TOPGROUPS.some(g=>g.children&&expanded.has(g.name));
+  const dimRowSpan=anyExpanded?3:2;
+  const thSubTop=isSourceGrid?0:anyExpanded?45:23;
   const thBase={padding:'6px 7px',fontSize:9,fontWeight:700,textTransform:'uppercase',
     letterSpacing:'.06em',textAlign:'center',border:'1px solid rgba(255,255,255,.18)',
     whiteSpace:'nowrap',position:'sticky',top:0,zIndex:3,color:'#fff'};
@@ -1220,7 +1223,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
     whiteSpace:'nowrap',position:'sticky',top:23,zIndex:2,color:'#fff'};
   const thSub={padding:'4px 6px',fontSize:8,fontWeight:700,textTransform:'uppercase',
     letterSpacing:'.05em',color:'#1E40AF',background:'#EFF6FF',textAlign:'center',
-    border:'1px solid #BFDBFE',whiteSpace:'nowrap',position:'sticky',top:isSourceGrid?0:23,zIndex:1};
+    border:'1px solid #BFDBFE',whiteSpace:'nowrap',position:'sticky',top:thSubTop,zIndex:1};
   const lblStyle={padding:'5px 10px',fontSize:11,fontWeight:600,color:'#222',
     position:'sticky',left:0,zIndex:1,borderRight:'2px solid #D1D5DB',
     whiteSpace:'nowrap',textAlign:'left'};
@@ -1239,7 +1242,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
         ce('thead',null,
           /* Row 1: Group headers (Total / Paid / Organic) — hidden on Source tab */
           !isSourceGrid&&ce('tr',null,
-            ce('th',{rowSpan:2,style:{...thBase,textAlign:'left',minWidth:110,
+            ce('th',{rowSpan:dimRowSpan,style:{...thBase,textAlign:'left',minWidth:110,
               background:'#1D4ED8',position:'sticky',left:0,zIndex:4,
               borderRight:'2px solid rgba(255,255,255,.3)'}},dimLabel||rowKey.toUpperCase()),
             ...TOPGROUPS.map((g,gi)=>{
@@ -1252,6 +1255,24 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
                   borderLeft:gi>0?'2px solid rgba(255,255,255,.4)':undefined},
                 onClick:g.children?()=>toggleGrp(g.name):undefined},
                 g.children?(isExp?'▼ ':'▶ ')+g.label:g.label);
+            })
+          ),
+          /* Row 2 (conditional): source-name labels — only when at least one group is expanded */
+          anyExpanded&&ce('tr',null,
+            ...TOPGROUPS.flatMap((g,gi)=>{
+              if(!g.children) return [ce('th',{key:'sn'+gi,colSpan:SCOLS_TOTAL.length,
+                style:{...thSub2,background:g.bg,
+                  borderLeft:gi>0?'2px solid rgba(255,255,255,.4)':undefined}},
+                '')];
+              const isExp=expanded.has(g.name);
+              if(!isExp) return [ce('th',{key:'sn'+gi,colSpan:SCOLS_NONTOTAL.length,
+                style:{...thSub2,background:g.bg,borderLeft:'2px solid rgba(255,255,255,.4)'}},
+                '')];
+              return g.children.map((src,si)=>ce('th',{key:'sn'+gi+'_'+si,
+                colSpan:SCOLS_NONTOTAL.length,
+                style:{...thSub2,background:g.bg,
+                  borderLeft:si===0?'2px solid rgba(255,255,255,.4)':'1px solid rgba(255,255,255,.25)'}},
+                src));
             })
           ),
           /* Metric column headers (always shown; on Source tab also holds the dim label) */
