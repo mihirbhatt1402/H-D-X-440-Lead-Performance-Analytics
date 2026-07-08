@@ -1,10 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isGirnarsoft() {
+    function isAllowedDomain() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@girnarsoft\\.com');
+        && (request.auth.token.email.matches('.*@girnarsoft\\.com')
+            || request.auth.token.email.matches('.*@girnarcare\\.com'));
     }
     function isAdmin() {
       return request.auth != null
@@ -14,7 +15,7 @@ service cloud.firestore {
     // User profile docs — user reads own, admin reads/writes all
     match /re_ldr_users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow create: if isGirnarsoft() && request.auth.uid == uid;
+      allow create: if isAllowedDomain() && request.auth.uid == uid;
       allow update: if isAdmin() || (request.auth.uid == uid && !('role' in request.resource.data.diff(resource.data).affectedKeys()));
       allow delete: if isAdmin();
     }
