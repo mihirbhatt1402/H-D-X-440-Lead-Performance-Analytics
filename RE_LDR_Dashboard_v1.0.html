@@ -270,7 +270,7 @@ function aggRE(rows,mf){
       if(r.isUnique) uniqueSet.add(r.lead_number);
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        if(diff>=0&&diff<=2) bookingCount++;
+        if(diff>=-1&&diff<=2) bookingCount++;
       }
     }
   } else {
@@ -283,7 +283,7 @@ function aggRE(rows,mf){
       /* Backward attribution: count bookings that happened IN mf from leads mf, mf-1, mf-2 */
       if(r.isUnique&&r.booking_month===mf){
         const diff=mfOrder-monthOrder(r.lead_month);
-        if(diff>=0&&diff<=2) bookingCount++;
+        if(diff>=-1&&diff<=2) bookingCount++;
       }
     }
   }
@@ -311,7 +311,7 @@ function aggMulti(rows,months){
     /* Backward attribution: bookings IN a month in monthSet, from leads within 0-2 months before */
     if(r.isUnique&&r.booking_month&&monthSet.has(r.booking_month)){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=0&&diff<=2) bookingCount++;
+      if(diff>=-1&&diff<=2) bookingCount++;
     }
   }
   const uniqueLeads=uniqueSet.size;
@@ -402,13 +402,13 @@ function aggGrouped(rows,mf,dimKey){
       countsLead=true;
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const d=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        countsBooking=d>=0&&d<=2;
+        countsBooking=d>=-1&&d<=2;
       } else countsBooking=false;
     } else {
       countsLead=r.lead_month===mf;
       if(r.isUnique&&r.booking_month===mf){
         const d=mfOrder-monthOrder(r.lead_month);
-        countsBooking=d>=0&&d<=2;
+        countsBooking=d>=-1&&d<=2;
       } else countsBooking=false;
     }
     if(!countsLead&&!countsBooking) continue;
@@ -500,7 +500,7 @@ function aggGroupedByMonth(rows,dimKey){
     /* Backward attribution: booking credited to booking_month bucket; lead must be within 0-2 months before */
     if(r.isUnique&&r.booking_month&&r.lead_month){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=0&&diff<=2){
+      if(diff>=-1&&diff<=2){
         const b=getBundle(r.booking_month);
         const bumpBooking=a=>{ a.bookingCount++; };
         bumpBooking(b.total);
