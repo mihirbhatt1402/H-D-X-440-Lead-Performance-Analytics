@@ -1743,7 +1743,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
       geomodel:  GeoModelTab,
     };
     return ce(COMPONENTS[tab],{key:tab,rows:baseRows,mf,viewerMode,bm:bookingMode});
-  },[tab,baseRows,mf,viewerMode]);
+  },[tab,baseRows,mf,viewerMode,bookingMode]);
 
   if(!rows) return ce(UploadScreen,{onData:setRows,onSync:handleSync,syncing,syncErr,sheetUrl,setSheetUrl,urlDraft,setUrlDraft,lastSynced});
 
