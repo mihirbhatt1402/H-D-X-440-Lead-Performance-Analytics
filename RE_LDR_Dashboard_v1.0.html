@@ -260,8 +260,8 @@ function parseRows(raw){
    'All' branch was O(months × n), which dominated render time once grids started
    aggregating across many months (Geo wise Model, "All Months Summary" grids, etc). */
 function aggRE(rows,mf,bm='update'){
-  const minDiff=bm==='create'?0:-2;
-  const maxDiff=bm==='create'?2:0;
+  const minDiff=bm==='update'?0:-2;
+  const maxDiff=bm==='update'?2:0;
   const isAll=mf==='All';
   let totalLeads=0;
   const uniqueSet=new Set();
@@ -302,8 +302,8 @@ function aggRE(rows,mf,bm='update'){
 
 /* Aggregate across an arbitrary set of selected months (used by mini-charts) — single pass. */
 function aggMulti(rows,months,bm='update'){
-  const minDiff=bm==='create'?0:-2;
-  const maxDiff=bm==='create'?2:0;
+  const minDiff=bm==='update'?0:-2;
+  const maxDiff=bm==='update'?2:0;
   if(!months||!months.length) return{totalLeads:0,uniqueLeads:0,dupLeads:0,dupPct:0,bookings:0,e2bPct:0};
   const monthSet=new Set(months);
   let totalLeads=0;
@@ -388,8 +388,8 @@ function ExportBtn({onClick}){
    render. Here every row is visited exactly once; sorting/finalizing the resulting (small) group
    map afterward is essentially free by comparison. */
 function aggGrouped(rows,mf,dimKey,bm='update'){
-  const minDiff=bm==='create'?0:-2;
-  const maxDiff=bm==='create'?2:0;
+  const minDiff=bm==='update'?0:-2;
+  const maxDiff=bm==='update'?2:0;
   const isAll=mf==='All';
   let leadMonthsPresent=null;
   if(isAll){
@@ -477,8 +477,8 @@ function aggGrouped(rows,mf,dimKey,bm='update'){
    just computed for every month in one traversal. This is what makes showing "by month"
    grids for every month (not just the latest) affordable on large datasets. */
 function aggGroupedByMonth(rows,dimKey,bm='update'){
-  const minDiff=bm==='create'?0:-2;
-  const maxDiff=bm==='create'?2:0;
+  const minDiff=bm==='update'?0:-2;
+  const maxDiff=bm==='update'?2:0;
   const PAID_MBRS=SRC_GROUPS[0].members,ORG_MBRS=SRC_GROUPS[1].members;
   function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingCount:0}; }
   function acc(map,key){ let a=map.get(key); if(a===undefined){a=mk();map.set(key,a);} return a; }
