@@ -259,7 +259,8 @@ function parseRows(raw){
    Single pass over `rows` instead of one filter pass per distinct month — the old
    'All' branch was O(months × n), which dominated render time once grids started
    aggregating across many months (Geo wise Model, "All Months Summary" grids, etc). */
-function aggRE(rows,mf){
+function aggRE(rows,mf,bm='update'){
+  const minDiff=bm==='create'?0:-1;
   const isAll=mf==='All';
   let totalLeads=0;
   const uniqueSet=new Set();
@@ -273,7 +274,7 @@ function aggRE(rows,mf){
       if(r.isUnique) uniqueSet.add(r.lead_number);
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        if(diff>=-1&&diff<=2) bookingCount++;
+        if(diff>=minDiff&&diff<=2) bookingCount++;
       }
     }
   } else {
@@ -283,10 +284,9 @@ function aggRE(rows,mf){
         totalLeads++;
         if(r.isUnique) uniqueSet.add(r.lead_number);
       }
-      /* Backward attribution: count bookings that happened IN mf from leads mf, mf-1, mf-2 */
       if(r.isUnique&&r.booking_month===mf){
         const diff=mfOrder-monthOrder(r.lead_month);
-        if(diff>=-1&&diff<=2) bookingCount++;
+        if(diff>=minDiff&&diff<=2) bookingCount++;
       }
     }
   }
@@ -300,7 +300,8 @@ function aggRE(rows,mf){
 }
 
 /* Aggregate across an arbitrary set of selected months (used by mini-charts) — single pass. */
-function aggMulti(rows,months){
+function aggMulti(rows,months,bm='update'){
+  const minDiff=bm==='create'?0:-1;
   if(!months||!months.length) return{totalLeads:0,uniqueLeads:0,dupLeads:0,dupPct:0,bookings:0,e2bPct:0};
   const monthSet=new Set(months);
   let totalLeads=0;
@@ -311,10 +312,9 @@ function aggMulti(rows,months){
       totalLeads++;
       if(r.isUnique) uniqueSet.add(r.lead_number);
     }
-    /* Backward attribution: bookings IN a month in monthSet, from leads within 0-2 months before */
     if(r.isUnique&&r.booking_month&&monthSet.has(r.booking_month)){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=-1&&diff<=2) bookingCount++;
+      if(diff>=minDiff&&diff<=2) bookingCount++;
     }
   }
   const uniqueLeads=uniqueSet.size;
@@ -385,7 +385,8 @@ function ExportBtn({onClick}){
    thousands of rows, 30+ states) was loaded — that blew up to millions of redundant row scans per
    render. Here every row is visited exactly once; sorting/finalizing the resulting (small) group
    map afterward is essentially free by comparison. */
-function aggGrouped(rows,mf,dimKey){
+function aggGrouped(rows,mf,dimKey,bm='update'){
+  const minDiff=bm==='create'?0:-1;
   const isAll=mf==='All';
   let leadMonthsPresent=null;
   if(isAll){
@@ -405,13 +406,13 @@ function aggGrouped(rows,mf,dimKey){
       countsLead=true;
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const d=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        countsBooking=d>=-1&&d<=2;
+        countsBooking=d>=minDiff&&d<=2;
       } else countsBooking=false;
     } else {
       countsLead=r.lead_month===mf;
       if(r.isUnique&&r.booking_month===mf){
         const d=mfOrder-monthOrder(r.lead_month);
-        countsBooking=d>=-1&&d<=2;
+        countsBooking=d>=minDiff&&d<=2;
       } else countsBooking=false;
     }
     if(!countsLead&&!countsBooking) continue;
@@ -472,7 +473,8 @@ function aggGrouped(rows,mf,dimKey){
    in its own booking_month's bucket — independently, exactly like aggRE's per-month branch,
    just computed for every month in one traversal. This is what makes showing "by month"
    grids for every month (not just the latest) affordable on large datasets. */
-function aggGroupedByMonth(rows,dimKey){
+function aggGroupedByMonth(rows,dimKey,bm='update'){
+  const minDiff=bm==='create'?0:-1;
   const PAID_MBRS=SRC_GROUPS[0].members,ORG_MBRS=SRC_GROUPS[1].members;
   function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingCount:0}; }
   function acc(map,key){ let a=map.get(key); if(a===undefined){a=mk();map.set(key,a);} return a; }
@@ -503,7 +505,7 @@ function aggGroupedByMonth(rows,dimKey){
     /* Backward attribution: booking credited to booking_month bucket; lead must be within 0-2 months before */
     if(r.isUnique&&r.booking_month&&r.lead_month){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=-1&&diff<=2){
+      if(diff>=minDiff&&diff<=2){
         const b=getBundle(r.booking_month);
         const bumpBooking=a=>{ a.bookingCount++; };
         bumpBooking(b.total);
@@ -627,10 +629,10 @@ function dupBadge(pct){
 /* ══════════════════════════════════════════════════════════════════════════
    OVERVIEW TAB
 ══════════════════════════════════════════════════════════════════════════ */
-const OverviewTab=React.memo(function OverviewTab({rows,mf,viewerMode}){
+const OverviewTab=React.memo(function OverviewTab({rows,mf,viewerMode,bm='update'}){
   /* One single pass over `rows` (no dimKey) gives the grand total + per-source breakdown
      used by the KPI strip and Source Summary table below. */
-  const grouped=useMemo(()=>aggGrouped(rows,mf,null),[rows,mf]);
+  const grouped=useMemo(()=>aggGrouped(rows,mf,null,bm),[rows,mf,bm]);
   const m=grouped.grand;
   const chartRef=useRef(); const chartInst=useRef();
 
@@ -638,10 +640,10 @@ const OverviewTab=React.memo(function OverviewTab({rows,mf,viewerMode}){
   const trendData=useMemo(()=>{
     const months=[...new Set(rows.map(r=>r.lead_month))].filter(m=>m&&m!=='-').sort((a,b)=>monthOrder(a)-monthOrder(b));
     return months.map(M=>{
-      const a=aggRE(rows,M);
+      const a=aggRE(rows,M,bm);
       return{month:M,uniqueLeads:a.uniqueLeads,bookings:a.bookings,e2bPct:a.e2bPct};
     });
-  },[rows]);
+  },[rows,bm]);
 
   /* Source breakdown — [source, agg] pairs straight from the single-pass grouped totals,
      sorted by the same month-filtered Unique Leads value the table actually displays. */
@@ -656,9 +658,9 @@ const OverviewTab=React.memo(function OverviewTab({rows,mf,viewerMode}){
      thousands of rows was the single biggest contributor to Overview's render time. */
   const insights=useMemo(()=>{
     const srcs=Object.keys(grouped.grandSrc).sort();
-    const byLT=aggGrouped(rows,mf,r=>r.lt);
-    const byPrim=aggGrouped(rows,mf,r=>r.primary_src);
-    const byState=aggGrouped(rows,mf,r=>r.state);
+    const byLT=aggGrouped(rows,mf,r=>r.lt,bm);
+    const byPrim=aggGrouped(rows,mf,r=>r.primary_src,bm);
+    const byState=aggGrouped(rows,mf,r=>r.state,bm);
 
     const bySrc={};
     for(const s of srcs){
@@ -967,17 +969,17 @@ const SRC_GROUPS=[
 const GRP_MAP={};SRC_GROUPS.forEach(g=>g.members.forEach(m=>{GRP_MAP[m]=g.name;}));
 
 /* ── Per-source mini chart ────────────────────────────────────────── */
-const SourceMiniChart=React.memo(function SourceMiniChart({src,srcRows,months,colorCfg}){
+const SourceMiniChart=React.memo(function SourceMiniChart({src,srcRows,months,colorCfg,bm='update'}){
   const chartRef=useRef(); const chartInst=useRef();
 
   /* Per-month data for this source (oldest → newest for chart x-axis) — respects the active month filter */
   const chartMonths=useMemo(()=>[...months].sort((a,b)=>monthOrder(a)-monthOrder(b)),[months]);
   const perMonth=useMemo(()=>chartMonths.map(M=>{
-    const a=aggRE(srcRows,M);
+    const a=aggRE(srcRows,M,bm);
     return{month:M,uniqueLeads:a.uniqueLeads,e2bPct:a.e2bPct};
-  }),[srcRows,chartMonths]);
+  }),[srcRows,chartMonths,bm]);
 
-  const totals=useMemo(()=>aggMulti(srcRows,chartMonths),[srcRows,chartMonths]);
+  const totals=useMemo(()=>aggMulti(srcRows,chartMonths,bm),[srcRows,chartMonths,bm]);
 
   useEffect(()=>{
     const canvas=chartRef.current;
@@ -1038,7 +1040,7 @@ function l2rColor(pct){
   return '#FECDD3';
 }
 
-const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLabel,badgeLabel,vahanMonths,precomputed,viewerMode}){
+const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLabel,badgeLabel,vahanMonths,precomputed,viewerMode,bm='update'}){
   const vMonths=useMemo(()=>vahanMonths&&vahanMonths.length?vahanMonths:[M],[vahanMonths,M]);
   const [expanded,setExpanded]=useState(new Set());
   const toggleGrp=name=>setExpanded(p=>{const n=new Set(p);n.has(name)?n.delete(name):n.add(name);return n;});
@@ -1076,7 +1078,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
      (dim,source) combination (was O(rows × dims × sources), the dominant cost on real
      datasets with hundreds of thousands of rows and 30+ states). If the caller already
      passed in via `precomputed` instead of recomputing here. */
-  const grouped=useMemo(()=>precomputed||aggGrouped(rows,M,r=>r[rowKey]||'Unknown'),[rows,M,rowKey,precomputed]);
+  const grouped=useMemo(()=>precomputed||aggGrouped(rows,M,r=>r[rowKey]||'Unknown',bm),[rows,M,rowKey,precomputed,bm]);
   const grand=grouped.grand;
   const grandSrc=isSourceGrid?{}:grouped.grandSrc;
   const grandPaid=isSourceGrid?EMPTY_AGG:grouped.grandPaid;
@@ -1311,7 +1313,7 @@ const CompactMonthGrid=React.memo(function CompactMonthGrid({M,rows,rowKey,dimLa
 /* ══════════════════════════════════════════════════════════════════════════
    SOURCE ANALYSIS TAB
 ══════════════════════════════════════════════════════════════════════════ */
-const SourceTab=React.memo(function SourceTab({rows,mf,viewerMode}){
+const SourceTab=React.memo(function SourceTab({rows,mf,viewerMode,bm='update'}){
   const sources=useMemo(()=>[...new Set(rows.map(r=>r.source))].filter(Boolean).sort(),[rows]);
 
   /* All months, oldest first for charts (handled inside SourceMiniChart) */
@@ -1345,11 +1347,11 @@ const SourceTab=React.memo(function SourceTab({rows,mf,viewerMode}){
       ce(ExportBtn,{onClick:()=>{
         const sheets={};
         for(const M of activeMonths){
-          const g=aggGrouped(rows,M,r=>r.source||'Unknown');
+          const g=aggGrouped(rows,M,r=>r.source||'Unknown',bm);
           sheets[M]=aggToAoa(g,'Source');
         }
         if(activeMonths.length>1){
-          const g=aggGrouped(rows,'All',r=>r.source||'Unknown');
+          const g=aggGrouped(rows,'All',r=>r.source||'Unknown',bm);
           sheets['All Months Summary']=aggToAoa(g,'Source');
         }
         exportXlsx(sheets,'RE_LDR_Source_Analysis');
@@ -1362,18 +1364,19 @@ const SourceTab=React.memo(function SourceTab({rows,mf,viewerMode}){
         key:src,src,
         srcRows:srcRowsMap[src]||[],
         months:activeMonths,
-        colorCfg:srcColors[src]||getSrcColor(src,i)
+        colorCfg:srcColors[src]||getSrcColor(src,i),
+        bm
       }))
     ),
 
     /* Compact matrix grids — one per active month */
-    activeMonths.map(M=>ce(CompactMonthGrid,{key:M,M,rows,rowKey:'source',dimLabel:'Source',viewerMode}))
+    activeMonths.map(M=>ce(CompactMonthGrid,{key:M,M,rows,rowKey:'source',dimLabel:'Source',viewerMode,bm}))
   );
 });
 
 
 /* ── Generic Dimension × Source Tab ──────────────────────────────── */
-const DimSourceTab=React.memo(function DimSourceTab({rows,mf,rowKey,dimLabel,xTabLabel,viewerMode,flat=false}){
+const DimSourceTab=React.memo(function DimSourceTab({rows,mf,rowKey,dimLabel,xTabLabel,viewerMode,flat=false,bm='update'}){
   const allMonths=useMemo(()=>
     [...new Set(rows.map(r=>r.lead_month))].filter(Boolean)
       .sort((a,b)=>monthOrder(b)-monthOrder(a))
@@ -1386,30 +1389,30 @@ const DimSourceTab=React.memo(function DimSourceTab({rows,mf,rowKey,dimLabel,xTa
       ce(ExportBtn,{onClick:()=>{
         const sheets={};
         for(const M of activeMonths){
-          const g=aggGrouped(rows,M,r=>r[rowKey]||'Unknown');
+          const g=aggGrouped(rows,M,r=>r[rowKey]||'Unknown',bm);
           sheets[M]=aggToAoa(g,dimLabel);
         }
-        const gAll=aggGrouped(rows,mf,r=>r[rowKey]||'Unknown');
+        const gAll=aggGrouped(rows,mf,r=>r[rowKey]||'Unknown',bm);
         sheets['All Months Summary']=aggToAoa(gAll,dimLabel);
         exportXlsx(sheets,'RE_LDR_'+dimLabel.replace(/\s+/g,'_')+'_x_Source');
       }})
     ),
-    activeMonths.map(M=>ce(CompactMonthGrid,{key:M,M,rows,rowKey,dimLabel,viewerMode})),
+    activeMonths.map(M=>ce(CompactMonthGrid,{key:M,M,rows,rowKey,dimLabel,viewerMode,bm})),
     ce('div',{style:{margin:'24px 0 16px',borderTop:'2px solid #D1D5DB'}}),
     ce('div',{style:{fontSize:11,fontWeight:700,color:'#6b7280',textTransform:'uppercase',
       letterSpacing:'.08em',marginBottom:12}},xTabLabel+' — All Months Summary'),
-    ce(CompactMonthGrid,{M:mf,rows,rowKey,dimLabel,viewerMode})
+    ce(CompactMonthGrid,{M:mf,rows,rowKey,dimLabel,viewerMode,bm})
   );
 });
 
-const LTSourceTab=React.memo(function LTSourceTab({rows,mf,viewerMode}){
-  return ce(DimSourceTab,{rows,mf,rowKey:'lt',dimLabel:'LT',xTabLabel:'LT × Source',viewerMode});
+const LTSourceTab=React.memo(function LTSourceTab({rows,mf,viewerMode,bm='update'}){
+  return ce(DimSourceTab,{rows,mf,rowKey:'lt',dimLabel:'LT',xTabLabel:'LT × Source',viewerMode,bm});
 });
-const ModelSourceTab=React.memo(function ModelSourceTab({rows,mf,viewerMode}){
-  return ce(DimSourceTab,{rows,mf,rowKey:'model',dimLabel:'Model',xTabLabel:'Model × Source',viewerMode});
+const ModelSourceTab=React.memo(function ModelSourceTab({rows,mf,viewerMode,bm='update'}){
+  return ce(DimSourceTab,{rows,mf,rowKey:'model',dimLabel:'Model',xTabLabel:'Model × Source',viewerMode,bm});
 });
-const StateSourceTab=React.memo(function StateSourceTab({rows,mf,viewerMode}){
-  return ce(DimSourceTab,{rows,mf,rowKey:'state',dimLabel:'State',xTabLabel:'State × Source',viewerMode});
+const StateSourceTab=React.memo(function StateSourceTab({rows,mf,viewerMode,bm='update'}){
+  return ce(DimSourceTab,{rows,mf,rowKey:'state',dimLabel:'State',xTabLabel:'State × Source',viewerMode,bm});
 });
 
 /* ── Model wise State × Source — replica of State × Source, one grid per Model instead of per Month
@@ -1454,7 +1457,7 @@ const MultiSelect=React.memo(function MultiSelect({label,options,selected,onChan
   );
 });
 
-const GeoModelTab=React.memo(function GeoModelTab({rows,mf,viewerMode}){
+const GeoModelTab=React.memo(function GeoModelTab({rows,mf,viewerMode,bm='update'}){
   const allMonths=useMemo(()=>
     [...new Set(rows.map(r=>r.lead_month))].filter(Boolean).sort((a,b)=>monthOrder(b)-monthOrder(a))
   ,[rows]);
@@ -1479,24 +1482,24 @@ const GeoModelTab=React.memo(function GeoModelTab({rows,mf,viewerMode}){
       ce(ExportBtn,{onClick:()=>{
         const sheets={};
         for(const{model,rows:mr} of modelGroups){
-          const g=aggGrouped(mr,'All',r=>r.state||'Unknown');
+          const g=aggGrouped(mr,'All',r=>r.state||'Unknown',bm);
           sheets[model.slice(0,31)]=aggToAoa(g,'State');
         }
-        const gAll=aggGrouped(filteredRows,'All',r=>r.state||'Unknown');
+        const gAll=aggGrouped(filteredRows,'All',r=>r.state||'Unknown',bm);
         sheets['All Models']=aggToAoa(gAll,'State');
         exportXlsx(sheets,'RE_LDR_Model_State_x_Source');
       }})
     ),
     modelGroups.map(({model,rows:mr})=>ce(CompactMonthGrid,{
       key:model,M:'All',rows:mr,rowKey:'state',dimLabel:'State',
-      badgeLabel:model,vahanMonths:resolvedMonths,viewerMode
+      badgeLabel:model,vahanMonths:resolvedMonths,viewerMode,bm
     })),
     ce('div',{style:{margin:'24px 0 16px',borderTop:'2px solid #D1D5DB'}}),
     ce('div',{style:{fontSize:11,fontWeight:700,color:'#6b7280',textTransform:'uppercase',
       letterSpacing:'.08em',marginBottom:12}},'Model wise State × Source — All Models Summary'),
     ce(CompactMonthGrid,{
       M:'All',rows:filteredRows,rowKey:'state',dimLabel:'State',
-      badgeLabel:'All Models',vahanMonths:resolvedMonths,viewerMode
+      badgeLabel:'All Models',vahanMonths:resolvedMonths,viewerMode,bm
     })
   );
 });
@@ -1653,6 +1656,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
   const [isPending,startTransition]=useTransition();
   /* Each filter is a Set of selected values — empty Set means "All" (no restriction). */
   const [filters,setFilters]=useState(()=>({month:new Set(),source:new Set(),primarySrc:new Set(),state:new Set(),city:new Set(),model:new Set()}));
+  const [bookingMode,setBookingMode]=useState('update');
   function setFilterKey(key,valueOrFn){
     startTransition(()=>setFilters(prev=>({...prev,[key]:typeof valueOrFn==='function'?valueOrFn(prev[key]):valueOrFn})));
   }
@@ -1721,7 +1725,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
 
   const mf=filters.month.size===1?[...filters.month][0]:'All';
 
-  const totalM=useMemo(()=>aggRE(baseRows,mf),[baseRows,mf]);
+  const totalM=useMemo(()=>aggRE(baseRows,mf,bookingMode),[baseRows,mf,bookingMode]);
 
   /* Only render the active tab. Every dimension's aggregation now runs through the
      single-pass aggGrouped() (see aggGrouped above), so even a fresh mount of the
@@ -1738,7 +1742,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
       statexsrc: StateSourceTab,
       geomodel:  GeoModelTab,
     };
-    return ce(COMPONENTS[tab],{key:tab,rows:baseRows,mf,viewerMode});
+    return ce(COMPONENTS[tab],{key:tab,rows:baseRows,mf,viewerMode,bm:bookingMode});
   },[tab,baseRows,mf,viewerMode]);
 
   if(!rows) return ce(UploadScreen,{onData:setRows,onSync:handleSync,syncing,syncErr,sheetUrl,setSheetUrl,urlDraft,setUrlDraft,lastSynced});
@@ -1842,6 +1846,19 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
             onClick:()=>startTransition(()=>setFilters({month:new Set(),source:new Set(),primarySrc:new Set(),state:new Set(),city:new Set(),model:new Set()})),
             style:{padding:'4px 12px',fontSize:10,background:'#D8EED8',border:'1px solid #A8D5BA',borderRadius:20,cursor:'pointer',fontFamily:'inherit',color:'#1B4332',fontWeight:600}
           },'✕ Clear Filters'),
+        ce('div',{style:{display:'flex',alignItems:'center',gap:4,marginLeft:8,flexShrink:0}},
+          ce('span',{style:{fontSize:10,color:'#64748b',fontWeight:600,whiteSpace:'nowrap'}},'Booking Method:'),
+          ce('div',{style:{display:'flex',borderRadius:20,overflow:'hidden',border:'1px solid #A8D5BA',fontSize:10,fontWeight:700}},
+            ce('button',{
+              onClick:()=>setBookingMode('update'),
+              style:{padding:'4px 10px',background:bookingMode==='update'?'#2D6A4F':'#fff',color:bookingMode==='update'?'#fff':'#1B4332',border:'none',cursor:'pointer',fontFamily:'inherit',fontWeight:700,whiteSpace:'nowrap'}
+            },'On Update'),
+            ce('button',{
+              onClick:()=>setBookingMode('create'),
+              style:{padding:'4px 10px',background:bookingMode==='create'?'#2D6A4F':'#fff',color:bookingMode==='create'?'#fff':'#1B4332',border:'none',cursor:'pointer',fontFamily:'inherit',fontWeight:700,borderLeft:'1px solid #A8D5BA',whiteSpace:'nowrap'}
+            },'On Create')
+          )
+        ),
         ce('span',{style:{marginLeft:'auto',fontSize:10,fontFamily:'DM Mono',color:'#94a3b8'}},
           Nf(totalM.uniqueLeads)+' unique leads shown')
       )
