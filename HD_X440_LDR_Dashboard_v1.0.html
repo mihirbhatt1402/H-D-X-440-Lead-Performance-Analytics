@@ -1047,6 +1047,7 @@ function SourceTab({rows,role}){
             ce('tr',null,
               ce('th',{className:'left',style:{minWidth:150,position:'sticky',top:0,left:0,zIndex:4,background:'#7C2D12'}},'Source'),
               ce('th',null,'Unique Leads'),
+              ce('th',{style:{background:'#9f1239'}},'Contrib%'),
               ce('th',{style:{background:'#14532d'}},'Interested'),
               ce('th',{style:{background:'#14532d'}},'L2E%'),
               ce('th',null,'Connected'),
@@ -1061,6 +1062,7 @@ function SourceTab({rows,role}){
             data.map((d,i)=>ce('tr',{key:i},
               ce('td',{className:'label'},d.src),
               ce('td',null,Nf(d.m.unique)),
+              ce('td',{style:{color:'#9f1239',fontWeight:600}},grand.total>0?(d.m.total/grand.total*100).toFixed(1)+'%':'—'),
               ce('td',{style:{color:'#16a34a',fontWeight:700}},Nf(d.m.interested)),
               ce('td',null,convBadge(d.m.convPct)),
               ce('td',null,Nf(d.m.connected)),
@@ -1073,6 +1075,7 @@ function SourceTab({rows,role}){
             ce('tr',{className:'total-row grand-total-row'},
               ce('td',{className:'label'},'∑ Grand Total'),
               ce('td',null,Nf(grand.unique)),
+              ce('td',{style:{color:'#fda4af',fontWeight:700}},'100.0%'),
               ce('td',{style:{color:'#86efac',fontWeight:700}},Nf(grand.interested)),
               ce('td',null,ce('span',{style:{color:'#86efac',fontWeight:700}},grand.convPct.toFixed(1)+'%')),
               ce('td',null,Nf(grand.connected)),
@@ -1279,7 +1282,7 @@ function LTSourceTab({rows,role}){
   const TDT={...TD,background:'#7C2D12',color:'#fff7ed',fontWeight:700};
   const TDTl={...TDT,textAlign:'left',fontFamily:'inherit',color:'#fed7aa',borderRight:'2px solid #92400E'};
 
-  function mk(m,pfx,dark=false,cellBg='#fff'){
+  function mk(m,pfx,dark=false,cellBg='#fff',base=null){
     const bg  = dark?'#7C2D12':cellBg;
     const tc  = dark?'#fff7ed':'#111827';
     const dim = dark?'#fed7aa88':'#6b7280';
@@ -1299,15 +1302,17 @@ function LTSourceTab({rows,role}){
         m.total>0?m.openPct.toFixed(1)+'%':'—'),
       ce('td',{key:pfx+'dp',style:{...b,color:m.total>0?tc:dim}},
         m.total>0?m.dupPct.toFixed(1)+'%':'—'),
+      ce('td',{key:pfx+'cb',style:{...b,color:base&&m.total>0?(dark?'#fda4af':'#9f1239'):dim}},
+        base&&m.total>0?(m.total/base*100).toFixed(1)+'%':'—'),
     ];
   }
 
-  function mkCol(col,tblRows,pfx,dark=false){
+  function mkCol(col,tblRows,pfx,dark=false,base=null){
     const fRows=col.type==='grp'
       ?tblRows.filter(r=>col.members.includes(r.source))
       :tblRows.filter(r=>r.source===col.src);
     const bg=col.type==='grp'?(GRP_CELL_BG[col.label]||'#F8F8FF'):getCellBg(col.src);
-    return mk(agg(fRows),pfx,dark,bg);
+    return mk(agg(fRows),pfx,dark,bg,base);
   }
 
   const SUB=[
@@ -1318,11 +1323,12 @@ function LTSourceTab({rows,role}){
     {l:'L2E↑Conn',  t:'L2E% on Connected = Interested ÷ Connected'},
     {l:'Open%',     t:'Open% = Open ÷ Total'},
     {l:'Dup%',      t:'Duplicity% = Duplicates ÷ Total'},
+    {l:'Contrib%',  t:'Lead Contribution% = Source Leads ÷ Row Total'},
   ];
-  const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24'];
+  const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24','#fda4af'];
   const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6','MS FB':'#7C3AED'};
   const SRC_BG_DEF='#374151';
-  const NCOLS=7;
+  const NCOLS=8;
 
   const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',
     letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',
@@ -1381,11 +1387,12 @@ function LTSourceTab({rows,role}){
           ce('tbody',null,
             sortedLTs.map((lt,ri)=>{
               const ltRows=tblRows.filter(r=>r.lt===lt);
+              const ltTotal=agg(ltRows).total;
               return ce('tr',{key:lt},
                 ce('td',{style:{...TDL,fontSize:10,padding:'3px 6px',color:'#C2410C',
                   background:ri%2===0?'#fff':'#FFF7ED'}},lt),
                 mk(agg(ltRows),lt+'_T_',false,getCellBg('__total__')),
-                COLS.map((col,ci)=>mkCol(col,ltRows,lt+'_c'+ci+'_'))
+                COLS.map((col,ci)=>mkCol(col,ltRows,lt+'_c'+ci+'_',false,ltTotal))
               );
             }),
             ce('tr',{key:'div'},ce('td',{colSpan:totalCols,style:{padding:0,background:'#92400E',height:2}})),
@@ -1393,7 +1400,7 @@ function LTSourceTab({rows,role}){
               ce('td',{className:'label',style:{...TDTl,fontSize:10,padding:'4px 6px',
                 position:'sticky',left:0,zIndex:6}},'∑ Grand Total'),
               mk(ltGM,'GT_',true,getCellBg('__total__')),
-              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true))
+              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true,ltGM.total))
             )
           )
         )
@@ -1514,7 +1521,7 @@ function StateSourceTab({rows,role}){
   const TDT={...TD,background:'#7C2D12',color:'#fff7ed',fontWeight:700};
   const TDTl={...TDT,textAlign:'left',fontFamily:'inherit',color:'#fed7aa',borderRight:'2px solid #92400E'};
 
-  function mk(m,pfx,dark=false,cellBg='#fff'){
+  function mk(m,pfx,dark=false,cellBg='#fff',base=null){
     const bg  = dark?'#7C2D12':cellBg;
     const tc  = dark?'#fff7ed':'#111827';
     const dim = dark?'#fed7aa88':'#6b7280';
@@ -1527,23 +1534,26 @@ function StateSourceTab({rows,role}){
       ce('td',{key:pfx+'lc',style:{...b,color:m.connected>0?tc:dim}},m.connected>0?m.l2eOnConn.toFixed(1)+'%':'—'),
       ce('td',{key:pfx+'op',style:{...b,color:m.total>0?tc:dim}},m.total>0?m.openPct.toFixed(1)+'%':'—'),
       ce('td',{key:pfx+'dp',style:{...b,color:m.total>0?tc:dim}},m.total>0?m.dupPct.toFixed(1)+'%':'—'),
+      ce('td',{key:pfx+'cb',style:{...b,color:base&&m.total>0?(dark?'#fda4af':'#9f1239'):dim}},
+        base&&m.total>0?(m.total/base*100).toFixed(1)+'%':'—'),
     ];
   }
 
-  function mkCol(col,tblRows,pfx,dark=false){
+  function mkCol(col,tblRows,pfx,dark=false,base=null){
     const fRows=col.type==='grp'
       ?tblRows.filter(r=>col.members.includes(r.source))
       :tblRows.filter(r=>r.source===col.src);
     const bg=col.type==='grp'?(GRP_CELL_BG[col.label]||'#F8F8FF'):getCellBg(col.src);
-    return mk(agg(fRows),pfx,dark,bg);
+    return mk(agg(fRows),pfx,dark,bg,base);
   }
 
   const SUB=[{l:'Total',t:'Total Leads'},{l:'Int',t:'Interested'},{l:'L2E%',t:'Interested ÷ Total'},
-    {l:'Conn%',t:'Connectivity%'},{l:'L2E↑Conn',t:'Interested ÷ Connected'},{l:'Open%',t:'Open ÷ Total'},{l:'Dup%',t:'Duplicity%'}];
-  const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24'];
+    {l:'Conn%',t:'Connectivity%'},{l:'L2E↑Conn',t:'Interested ÷ Connected'},{l:'Open%',t:'Open ÷ Total'},{l:'Dup%',t:'Duplicity%'},
+    {l:'Contrib%',t:'Lead Contribution% = Source Leads ÷ Row Total'}];
+  const SUB_C=['#fed7aa','#86efac','#6ee7b7','#67e8f9','#a5f3fc','#c4b5fd','#fbbf24','#fda4af'];
   const SRC_BG={'__total__':'#7C2D12','Adwords':'#1E40AF','Organic':'#166534','Non MS':'#5B21B6','MS FB':'#7C3AED'};
   const SRC_BG_DEF='#374151';
-  const NCOLS=7;
+  const NCOLS=8;
 
   const TH={padding:'6px 4px',fontWeight:700,fontSize:9,textTransform:'uppercase',letterSpacing:'.05em',color:'#fff',background:'#7C2D12',textAlign:'center',border:'1px solid rgba(255,255,255,.12)',whiteSpace:'nowrap',position:'sticky',top:0,zIndex:2};
   const THS={...TH,background:'#92400E',fontSize:8,color:'#fed7aa',position:'sticky',top:26,zIndex:1,padding:'4px 4px'};
@@ -1609,6 +1619,7 @@ function StateSourceTab({rows,role}){
               const cityRows=cities.map(ct=>({ct,rows:stRows.filter(r=>r.city===ct)}))
                 .sort((a,b)=>b.rows.length-a.rows.length);
 
+              const stAgg=agg(stRows);
               const stateRow=ce('tr',{key:st,style:{cursor:cities.length>0?'pointer':'default'},
                 onClick:()=>cities.length>0&&toggleState(st)},
                 ce('td',{style:{...TDL,fontSize:10,padding:'3px 6px',color:'#C2410C',
@@ -1616,20 +1627,21 @@ function StateSourceTab({rows,role}){
                   (cities.length>0?(isOpen?'▾ ':'▸ '):'　 ')+st+
                   (cities.length>0?' ('+cities.length+')':'')
                 ),
-                mk(agg(stRows),st+'_T_',false,getCellBg('__total__')),
-                COLS.map((col,ci)=>mkCol(col,stRows,st+'_c'+ci+'_'))
+                mk(stAgg,st+'_T_',false,getCellBg('__total__')),
+                COLS.map((col,ci)=>mkCol(col,stRows,st+'_c'+ci+'_',false,stAgg.total))
               );
 
               if(!isOpen||cities.length===0) return[stateRow];
 
-              const cityRowEls=cityRows.map(({ct,rows:ctRows})=>
-                ce('tr',{key:st+'__'+ct,style:{background:'#FFFBF5'}},
+              const cityRowEls=cityRows.map(({ct,rows:ctRows})=>{
+                const ctAgg=agg(ctRows);
+                return ce('tr',{key:st+'__'+ct,style:{background:'#FFFBF5'}},
                   ce('td',{style:{...TDL,fontSize:9.5,padding:'2px 6px 2px 20px',
                     color:'#92400E',fontWeight:500,background:'#FFFBF5'}},'└ '+ct),
-                  mk(agg(ctRows),st+'_'+ct+'_T_',false,'#FFFBF5'),
-                  COLS.map((col,ci)=>mkCol(col,ctRows,st+'_'+ct+'_c'+ci+'_'))
-                )
-              );
+                  mk(ctAgg,st+'_'+ct+'_T_',false,'#FFFBF5'),
+                  COLS.map((col,ci)=>mkCol(col,ctRows,st+'_'+ct+'_c'+ci+'_',false,ctAgg.total))
+                );
+              });
               return[stateRow,...cityRowEls];
             }),
             ce('tr',{key:'div'},ce('td',{colSpan:totalCols,style:{padding:0,background:'#92400E',height:2}})),
@@ -1637,7 +1649,7 @@ function StateSourceTab({rows,role}){
               ce('td',{className:'label',style:{...TDTl,fontSize:10,padding:'4px 6px',
                 position:'sticky',left:0,zIndex:6}},'∑ Grand Total'),
               mk(stGM,'GT_',true,getCellBg('__total__')),
-              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true))
+              COLS.map((col,ci)=>mkCol(col,tblRows,'GT_c'+ci+'_',true,stGM.total))
             )
           )
         )
