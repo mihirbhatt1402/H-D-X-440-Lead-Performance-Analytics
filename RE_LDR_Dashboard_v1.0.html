@@ -260,7 +260,8 @@ function parseRows(raw){
    'All' branch was O(months × n), which dominated render time once grids started
    aggregating across many months (Geo wise Model, "All Months Summary" grids, etc). */
 function aggRE(rows,mf,bm='update'){
-  const minDiff=bm==='create'?0:-1;
+  const minDiff=bm==='create'?0:-2;
+  const maxDiff=bm==='create'?2:0;
   const isAll=mf==='All';
   let totalLeads=0;
   const uniqueSet=new Set();
@@ -274,7 +275,7 @@ function aggRE(rows,mf,bm='update'){
       if(r.isUnique) uniqueSet.add(r.lead_number);
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        if(diff>=minDiff&&diff<=2) bookingCount++;
+        if(diff>=minDiff&&diff<=maxDiff) bookingCount++;
       }
     }
   } else {
@@ -286,7 +287,7 @@ function aggRE(rows,mf,bm='update'){
       }
       if(r.isUnique&&r.booking_month===mf){
         const diff=mfOrder-monthOrder(r.lead_month);
-        if(diff>=minDiff&&diff<=2) bookingCount++;
+        if(diff>=minDiff&&diff<=maxDiff) bookingCount++;
       }
     }
   }
@@ -301,7 +302,8 @@ function aggRE(rows,mf,bm='update'){
 
 /* Aggregate across an arbitrary set of selected months (used by mini-charts) — single pass. */
 function aggMulti(rows,months,bm='update'){
-  const minDiff=bm==='create'?0:-1;
+  const minDiff=bm==='create'?0:-2;
+  const maxDiff=bm==='create'?2:0;
   if(!months||!months.length) return{totalLeads:0,uniqueLeads:0,dupLeads:0,dupPct:0,bookings:0,e2bPct:0};
   const monthSet=new Set(months);
   let totalLeads=0;
@@ -314,7 +316,7 @@ function aggMulti(rows,months,bm='update'){
     }
     if(r.isUnique&&r.booking_month&&monthSet.has(r.booking_month)){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=minDiff&&diff<=2) bookingCount++;
+      if(diff>=minDiff&&diff<=maxDiff) bookingCount++;
     }
   }
   const uniqueLeads=uniqueSet.size;
@@ -386,7 +388,8 @@ function ExportBtn({onClick}){
    render. Here every row is visited exactly once; sorting/finalizing the resulting (small) group
    map afterward is essentially free by comparison. */
 function aggGrouped(rows,mf,dimKey,bm='update'){
-  const minDiff=bm==='create'?0:-1;
+  const minDiff=bm==='create'?0:-2;
+  const maxDiff=bm==='create'?2:0;
   const isAll=mf==='All';
   let leadMonthsPresent=null;
   if(isAll){
@@ -406,13 +409,13 @@ function aggGrouped(rows,mf,dimKey,bm='update'){
       countsLead=true;
       if(r.isUnique&&r.booking_month&&leadMonthsPresent.has(r.booking_month)){
         const d=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-        countsBooking=d>=minDiff&&d<=2;
+        countsBooking=d>=minDiff&&d<=maxDiff;
       } else countsBooking=false;
     } else {
       countsLead=r.lead_month===mf;
       if(r.isUnique&&r.booking_month===mf){
         const d=mfOrder-monthOrder(r.lead_month);
-        countsBooking=d>=minDiff&&d<=2;
+        countsBooking=d>=minDiff&&d<=maxDiff;
       } else countsBooking=false;
     }
     if(!countsLead&&!countsBooking) continue;
@@ -474,7 +477,8 @@ function aggGrouped(rows,mf,dimKey,bm='update'){
    just computed for every month in one traversal. This is what makes showing "by month"
    grids for every month (not just the latest) affordable on large datasets. */
 function aggGroupedByMonth(rows,dimKey,bm='update'){
-  const minDiff=bm==='create'?0:-1;
+  const minDiff=bm==='create'?0:-2;
+  const maxDiff=bm==='create'?2:0;
   const PAID_MBRS=SRC_GROUPS[0].members,ORG_MBRS=SRC_GROUPS[1].members;
   function mk(){ return{totalLeads:0,uniqueSet:new Set(),bookingCount:0}; }
   function acc(map,key){ let a=map.get(key); if(a===undefined){a=mk();map.set(key,a);} return a; }
@@ -505,7 +509,7 @@ function aggGroupedByMonth(rows,dimKey,bm='update'){
     /* Backward attribution: booking credited to booking_month bucket; lead must be within 0-2 months before */
     if(r.isUnique&&r.booking_month&&r.lead_month){
       const diff=monthOrder(r.booking_month)-monthOrder(r.lead_month);
-      if(diff>=minDiff&&diff<=2){
+      if(diff>=minDiff&&diff<=maxDiff){
         const b=getBundle(r.booking_month);
         const bumpBooking=a=>{ a.bookingCount++; };
         bumpBooking(b.total);
