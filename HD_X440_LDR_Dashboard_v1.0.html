@@ -2702,15 +2702,16 @@ function App({fbUser,role,presence,onSignOut}){
     );
   },[rows,filters]);
 
-  if(!rows) return ce(UploadScreen,{onData:setRows,
-    onSync:handleSync, syncing, syncErr,
-    sheetUrl, setSheetUrl, urlDraft, setUrlDraft, lastSynced});
-
   const maxUpdateTill=useMemo(()=>{
+    if(!rows) return null;
     const dates=rows.map(r=>r.createDay).filter(Boolean);
     if(!dates.length) return null;
     return dates.reduce((a,b)=>a>b?a:b);
   },[rows]);
+
+  if(!rows) return ce(UploadScreen,{onData:setRows,
+    onSync:handleSync, syncing, syncErr,
+    sheetUrl, setSheetUrl, urlDraft, setUrlDraft, lastSynced});
 
   const totalM=agg(filtered);
 
