@@ -331,9 +331,10 @@ function parseRows(raw){
     const city   = get('City');
     const state  = get('State');
     const status = get(['Status','Final Status']);
-    const attRaw = get(['Dialler Attempts','Status Attempts','Status  Attempts']);
-    const conn   = get('Connected');
-    const dup    = get(['Duplicate/Unique','Duplicate']);
+    const attRaw    = get(['Dialler Attempts','Status Attempts','Status  Attempts']);
+    const conn      = get('Connected');
+    const dup       = get(['Duplicate/Unique','Duplicate']);
+    const createDay = get(['Create Day','Created Day','Create Date','Created Date','Date']);
     const attempts = parseInt(attRaw)||0;
     const isConnected = (()=>{const c=(conn||'').toLowerCase().trim();return c==='yes'||c==='connected';})();
     const isDuplicate = (dup||'').toLowerCase()==='duplicate';
@@ -350,7 +351,7 @@ function parseRows(raw){
 
     return {month,lt:lt||'Unknown',source:source||'Organic',city,state:state||'Unknown',
       status,group:getGroup(status),attempts,isConnected,isDuplicate,attStatuses,
-      mobile,isMonthDup:false};
+      mobile,isMonthDup:false,createDay};
   }).filter(r=>r.month&&r.status);
 }
 
@@ -2705,6 +2706,12 @@ function App({fbUser,role,presence,onSignOut}){
     onSync:handleSync, syncing, syncErr,
     sheetUrl, setSheetUrl, urlDraft, setUrlDraft, lastSynced});
 
+  const maxUpdateTill=useMemo(()=>{
+    const dates=rows.map(r=>r.createDay).filter(Boolean);
+    if(!dates.length) return null;
+    return dates.reduce((a,b)=>a>b?a:b);
+  },[rows]);
+
   const totalM=agg(filtered);
 
   return ce('div',{style:{minHeight:'100vh'}},
@@ -2723,6 +2730,12 @@ function App({fbUser,role,presence,onSignOut}){
               'LEAD DISPOSITION DASHBOARD v1.0 · BikeDekho')
           )
         ),
+        /* Updated Till chip */
+        maxUpdateTill&&ce('div',{style:{flexShrink:0,padding:'4px 12px',
+          background:'rgba(255,255,255,.15)',border:'1px solid rgba(255,255,255,.25)',
+          borderRadius:20,color:'#fff',fontSize:9,fontWeight:700,whiteSpace:'nowrap',
+          letterSpacing:'.03em'}},
+          'Updated Till: '+maxUpdateTill),
         /* Sync from Sheets button */
         ce('button',{
           onClick:()=>handleSync(),
