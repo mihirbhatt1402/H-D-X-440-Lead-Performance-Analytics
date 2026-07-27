@@ -1,6 +1,6 @@
 {
   "rules": {
-    "re_ldr_presence": {
+    "presence": {
       "$uid": {
         ".read": "auth != null && auth.token.email.contains('@girnarsoft.com')",
         ".write": "auth != null && auth.uid === $uid"
