@@ -12,8 +12,7 @@ service cloud.firestore {
         && request.auth.token.email == 'mihir.bhatt@girnarsoft.com';
     }
 
-    // User profile docs — user reads own, admin reads/writes all
-    match /re_ldr_users/{uid} {
+    match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if isAllowedDomain() && request.auth.uid == uid;
       allow update: if isAdmin() || (request.auth.uid == uid && !('role' in request.resource.data.diff(resource.data).affectedKeys()));
