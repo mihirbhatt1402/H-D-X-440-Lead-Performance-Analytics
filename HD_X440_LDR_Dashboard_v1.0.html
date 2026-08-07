@@ -1386,7 +1386,7 @@ function LTSourceTab({rows,role}){
             ce('tr',null,...row2Cells)
           ),
           ce('tbody',null,
-            sortedLTs.map((lt,ri)=>{
+            sortedLTs.filter(lt=>tblRows.some(r=>r.lt===lt)).map((lt,ri)=>{
               const ltRows=tblRows.filter(r=>r.lt===lt);
               const ltTotal=agg(ltRows).total;
               return ce('tr',{key:lt},
