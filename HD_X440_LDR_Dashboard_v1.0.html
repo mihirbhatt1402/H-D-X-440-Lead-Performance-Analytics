@@ -1392,7 +1392,7 @@ function LTSourceTab({rows,role}){
               return ce('tr',{key:lt},
                 ce('td',{style:{...TDL,fontSize:10,padding:'3px 6px',color:'#C2410C',
                   background:ri%2===0?'#fff':'#FFF7ED'}},lt),
-                mk(agg(ltRows),lt+'_T_',false,getCellBg('__total__')),
+                mk(agg(ltRows),lt+'_T_',false,getCellBg('__total__'),ltGM.total),
                 COLS.map((col,ci)=>mkCol(col,ltRows,lt+'_c'+ci+'_',false,ltTotal))
               );
             }),
@@ -1628,7 +1628,7 @@ function StateSourceTab({rows,role}){
                   (cities.length>0?(isOpen?'▾ ':'▸ '):'　 ')+st+
                   (cities.length>0?' ('+cities.length+')':'')
                 ),
-                mk(stAgg,st+'_T_',false,getCellBg('__total__')),
+                mk(stAgg,st+'_T_',false,getCellBg('__total__'),stGM.total),
                 COLS.map((col,ci)=>mkCol(col,stRows,st+'_c'+ci+'_',false,stAgg.total))
               );
 
@@ -1639,7 +1639,7 @@ function StateSourceTab({rows,role}){
                 return ce('tr',{key:st+'__'+ct,style:{background:'#FFFBF5'}},
                   ce('td',{style:{...TDL,fontSize:9.5,padding:'2px 6px 2px 20px',
                     color:'#92400E',fontWeight:500,background:'#FFFBF5'}},'└ '+ct),
-                  mk(ctAgg,st+'_'+ct+'_T_',false,'#FFFBF5'),
+                  mk(ctAgg,st+'_'+ct+'_T_',false,'#FFFBF5',stGM.total),
                   COLS.map((col,ci)=>mkCol(col,ctRows,st+'_'+ct+'_c'+ci+'_',false,ctAgg.total))
                 );
               });
